@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" width="720" height="420"
+     font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+     role="img" aria-label="The kubastion window: a terminal on top, a live pod table underneath.">
+  <title>kubastion</title>
+
+  <!-- window -->
+  <rect x="8" y="8" width="704" height="404" rx="10" fill="#0f1419" stroke="#2a343f" stroke-width="1.5"/>
+
+  <!-- ── header ─────────────────────────────────────────────────────────── -->
+  <path d="M8 18a10 10 0 0 1 10-10h684a10 10 0 0 1 10 10v24H8z" fill="#171d24"/>
+  <line x1="8" y1="42" x2="712" y2="42" stroke="#2a343f" stroke-width="1.5"/>
+
+  <g transform="translate(22 14) scale(0.34)">
+    <g fill="none" stroke="#7fb0f5" stroke-width="3.4" stroke-linecap="round" opacity=".55">
+      <circle cx="32" cy="32" r="19.5"/>
+      <path d="M32 12.5V5.5M32 51.5v7M12.5 32H5.5M51.5 32h7"/>
+      <path d="M18.2 18.2 13.2 13.2M45.8 45.8l5 5M45.8 18.2l5-5M18.2 45.8l-5 5"/>
+    </g>
+    <g fill="#c9d2dc" stroke="#1e3a6b" stroke-width="2.6" stroke-linejoin="round">
+      <path d="M20.5 22.5v-6.8h5.6v3.4h3.1v-3.4h5.6v3.4h3.1v-3.4h5.6v6.8z"/>
+      <rect x="23.2" y="22.5" width="17.6" height="21.3" rx="1.4"/>
+      <rect x="19.8" y="43.8" width="24.4" height="7.2" rx="1.8"/>
+    </g>
+    <path d="M32 15.7V4.4" fill="none" stroke="#1e3a6b" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M33.4 4.6c3.4-1.8 5.8 1.8 8.6.2v6.4c-2.8 1.6-5.2-2-8.6-.2z" fill="#4c9aff" stroke="#1e3a6b" stroke-width="2.2"/>
+  </g>
+
+  <text x="48" y="30" fill="#4c9aff" font-size="13" font-weight="700">kubastion</text>
+  <rect x="120" y="16" width="64" height="18" rx="9" fill="#1e262f" stroke="#2a343f"/>
+  <text x="130" y="29" fill="#7c8b9c" font-size="10.5">ns  demo</text>
+
+  <circle cx="536" cy="25" r="4" fill="#3ec18c"/>
+  <text x="546" y="29" fill="#3ec18c" font-size="11">monitoring</text>
+  <rect x="616" y="15" width="80" height="20" rx="5" fill="#1e262f" stroke="#2a343f"/>
+  <text x="626" y="29" fill="#d5dde6" font-size="10">Stop monitoring</text>
+
+  <!-- ── terminal: you drive this yourself ──────────────────────────────── -->
+  <g font-size="11.5">
+    <text x="22" y="64" fill="#d5dde6"><tspan fill="#3ec18c">$</tspan> ssh jump-host</text>
+    <text x="22" y="84" fill="#7c8b9c">  1) cluster-a      2) cluster-b</text>
+    <text x="22" y="104" fill="#d5dde6">select destination: <tspan fill="#e8b04b">1</tspan></text>
+    <text x="22" y="130" fill="#3ec18c">you@jump-host<tspan fill="#7c8b9c">:</tspan><tspan fill="#4c9aff">~</tspan><tspan fill="#d5dde6">$ kubectl get pods</tspan></text>
+    <text x="22" y="150" fill="#7c8b9c">NAME                          READY   STATUS</text>
+    <text x="22" y="170" fill="#7c8b9c">api-gateway-7d9f8b6c4-2xk9p   1/1     Running</text>
+    <text x="22" y="196" fill="#3ec18c">you@jump-host<tspan fill="#7c8b9c">:</tspan><tspan fill="#4c9aff">~</tspan><tspan fill="#d5dde6">$ </tspan></text>
+  </g>
+  <rect x="128" y="187" width="7" height="12" fill="#4c9aff"/>
+
+  <!-- ── splitter ───────────────────────────────────────────────────────── -->
+  <rect x="9" y="210" width="702" height="10" fill="#171d24"/>
+  <line x1="8" y1="210" x2="712" y2="210" stroke="#2a343f" stroke-width="1.5"/>
+  <line x1="8" y1="220" x2="712" y2="220" stroke="#2a343f" stroke-width="1.5"/>
+  <rect x="343" y="214" width="34" height="2.5" rx="1.25" fill="#4c9aff" opacity=".7"/>
+
+  <!-- ── toolbar ────────────────────────────────────────────────────────── -->
+  <rect x="9" y="220" width="702" height="34" fill="#171d24"/>
+  <line x1="8" y1="254" x2="712" y2="254" stroke="#2a343f" stroke-width="1.5"/>
+
+  <rect x="22" y="227" width="150" height="20" rx="5" fill="#0f1419" stroke="#2a343f"/>
+  <g transform="translate(30 233)" stroke="#7c8b9c" fill="none" stroke-width="1.3">
+    <circle cx="4" cy="4" r="3.2"/><path d="M6.4 6.4 9 9" stroke-linecap="round"/>
+  </g>
+  <text x="45" y="241" fill="#7c8b9c" font-size="10.5">Filter pods…</text>
+
+  <rect x="182" y="227" width="56" height="20" rx="10" fill="#1e262f" stroke="#4c9aff"/>
+  <text x="193" y="241" fill="#d5dde6" font-size="10.5">8 pods</text>
+
+  <rect x="246" y="227" width="126" height="20" rx="10" fill="#e5534b" fill-opacity=".14" stroke="#e5534b"/>
+  <text x="256" y="241" fill="#e5534b" font-size="10.5">4 needing attention</text>
+
+  <text x="696" y="241" fill="#7c8b9c" font-size="10.5" text-anchor="end">updated 2s ago</text>
+
+  <!-- ── table ──────────────────────────────────────────────────────────── -->
+  <g fill="#7c8b9c" font-size="9" letter-spacing="1">
+    <text x="34" y="274">POD</text>
+    <text x="330" y="274">STATUS</text>
+    <text x="466" y="274">READY</text>
+    <text x="568" y="274" text-anchor="end">RESTARTS</text>
+    <text x="628" y="274" text-anchor="end">AGE</text>
+    <text x="648" y="274">NODE</text>
+  </g>
+  <line x1="9" y1="282" x2="711" y2="282" stroke="#2a343f" stroke-width="1.5"/>
+
+  <!-- healthy -->
+  <g font-size="10.5">
+    <rect x="22" y="294" width="3" height="12" rx="1.5" fill="#3ec18c"/>
+    <text x="34" y="304" fill="#d5dde6">api-gateway-7d9f8b6c4-2xk9p</text>
+    <rect x="330" y="293" width="52" height="16" rx="8" fill="#3ec18c" fill-opacity=".12"/>
+    <text x="339" y="304" fill="#3ec18c">Running</text>
+    <text x="466" y="304" fill="#d5dde6">1/1</text>
+    <text x="568" y="304" fill="#d5dde6" text-anchor="end">0</text>
+    <text x="628" y="304" fill="#7c8b9c" text-anchor="end">3h</text>
+    <text x="648" y="304" fill="#7c8b9c">node-01</text>
+  </g>
+  <line x1="9" y1="316" x2="711" y2="316" stroke="#2a343f"/>
+
+  <g font-size="10.5">
+    <rect x="22" y="328" width="3" height="12" rx="1.5" fill="#3ec18c"/>
+    <text x="34" y="338" fill="#d5dde6">auth-service-849c6f7d5-lm4qv</text>
+    <rect x="330" y="327" width="52" height="16" rx="8" fill="#3ec18c" fill-opacity=".12"/>
+    <text x="339" y="338" fill="#3ec18c">Running</text>
+    <text x="466" y="338" fill="#d5dde6">2/2</text>
+    <text x="568" y="338" fill="#e8b04b" text-anchor="end">1</text>
+    <text x="628" y="338" fill="#7c8b9c" text-anchor="end">3h</text>
+    <text x="648" y="338" fill="#7c8b9c">node-03</text>
+  </g>
+  <line x1="9" y1="350" x2="711" y2="350" stroke="#2a343f"/>
+
+  <!-- the one you actually opened the tab for -->
+  <rect x="9" y="350" width="702" height="34" fill="#e5534b" fill-opacity=".06"/>
+  <g font-size="10.5">
+    <rect x="22" y="362" width="3" height="12" rx="1.5" fill="#e5534b"/>
+    <text x="34" y="372" fill="#d5dde6">billing-service-5c7d4f8b9-hq2mn</text>
+    <rect x="330" y="361" width="106" height="16" rx="8" fill="#e5534b" fill-opacity=".14"/>
+    <text x="339" y="372" fill="#e5534b">CrashLoopBackOff</text>
+    <text x="466" y="372" fill="#e8b04b">1/2</text>
+    <text x="568" y="372" fill="#e8b04b" text-anchor="end">9</text>
+    <text x="628" y="372" fill="#7c8b9c" text-anchor="end">3h</text>
+    <text x="648" y="372" fill="#7c8b9c">node-02</text>
+  </g>
+  <line x1="9" y1="384" x2="711" y2="384" stroke="#2a343f"/>
+
+  <g font-size="10.5">
+    <rect x="22" y="396" width="3" height="12" rx="1.5" fill="#e5534b"/>
+    <text x="34" y="406" fill="#d5dde6">notification-worker-6b8c9d5e7-p4tzw</text>
+    <rect x="330" y="395" width="106" height="16" rx="8" fill="#e5534b" fill-opacity=".14"/>
+    <text x="339" y="406" fill="#e5534b">ImagePullBackOff</text>
+    <text x="466" y="406" fill="#e8b04b">0/1</text>
+    <text x="568" y="406" fill="#d5dde6" text-anchor="end">0</text>
+    <text x="628" y="406" fill="#7c8b9c" text-anchor="end">4m</text>
+    <text x="648" y="406" fill="#7c8b9c">node-01</text>
+  </g>
+</svg>
