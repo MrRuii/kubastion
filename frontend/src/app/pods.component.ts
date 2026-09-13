@@ -1,4 +1,6 @@
-import { Component, OnDestroy, computed, input, model, output, signal } from '@angular/core';
+import {
+  Component, HostListener, OnDestroy, computed, input, model, output, signal,
+} from '@angular/core';
 import { CommandInfo, PodView } from './models';
 
 type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
@@ -49,7 +51,7 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
         }
       </div>
     } @else {
-      <div class="grid">
+      <div class="grid" (scroll)="menuFor.set(null)">
         <table>
           <thead>
             <tr>
@@ -74,14 +76,12 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
           </thead>
           <tbody>
             @for (pod of visible(); track pod.name) {
-              <tr [class.flagged]="!pod.healthy" [class.selected]="pod.name === selected()"
-                  (click)="action.emit({ id: 'pod-logs', pod: pod.name })"
-                  title="Open this pod">
+              <tr [class.flagged]="!pod.healthy" [class.selected]="pod.name === selected()">
                 <td class="c-name">
                   <span class="rail" [class.bad]="!pod.healthy"></span>
                   <span class="podname" [title]="pod.name">{{ pod.name }}</span>
                   <button type="button" class="copy" [title]="'Copy ' + pod.name"
-                          (click)="$event.stopPropagation(); copy(pod.name)">
+                          (click)="copy(pod.name)">
                     {{ copied() === pod.name ? 'copied' : 'copy' }}
                   </button>
                 </td>
@@ -95,22 +95,30 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
                 <td class="c-age num mono faint">{{ age(pod.startedAt) }}</td>
                 <td class="c-node faint">{{ pod.node || '—' }}</td>
                 <td class="c-actions">
-                  <span class="acts">
-                    @for (command of quickPodCommands(); track command.id) {
-                      <button type="button" class="act" [class.first]="$first"
-                              [title]="command.description"
-                              (click)="$event.stopPropagation(); action.emit({ id: command.id, pod: pod.name })">
-                        {{ command.label }}
-                      </button>
-                    }
-                    <button type="button" class="act more" title="Every command for this pod"
-                            (click)="$event.stopPropagation(); action.emit({ id: 'pod-logs', pod: pod.name })">…</button>
-                  </span>
+                  <button type="button" class="dots" [class.open]="menuFor() === pod.name"
+                          [attr.aria-expanded]="menuFor() === pod.name"
+                          title="Commands for this pod"
+                          (click)="toggleMenu(pod.name, $event)">⋯</button>
                 </td>
               </tr>
             }
           </tbody>
         </table>
+      </div>
+    }
+
+    @if (menuFor(); as name) {
+      <div class="menu" (click)="$event.stopPropagation()"
+           [style.right.px]="menuPos().right"
+           [style.top.px]="menuPos().top" [style.bottom.px]="menuPos().bottom">
+        <div class="menu-head">{{ name }}</div>
+        @for (command of podCommands(); track command.id) {
+          <button type="button" [title]="command.description"
+                  (click)="pick(command.id, name)">
+            <span class="ml">{{ command.label }}</span>
+            <small>{{ command.description }}</small>
+          </button>
+        }
       </div>
     }
   `,
@@ -199,7 +207,6 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
       box-shadow: inset -1px 0 0 var(--border);
       white-space: nowrap;
     }
-    tbody tr { cursor: pointer; }
     tbody tr:nth-child(even) td { background: var(--panel-2); }
     tbody tr:hover td { background: var(--accent-bg); }
     tbody tr.flagged td { background: var(--bad-bg); }
@@ -230,17 +237,37 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
     .copy:hover { color: var(--accent); border-color: var(--accent); }
     tr:hover .copy, .copy:focus-visible { opacity: 1; }
 
-    /* The commands you reach for all day, always visible, one click each.
-       Joined into a single segmented control so a row reads as one unit. */
-    .acts { display: inline-flex; }
-    .act {
-      font-size: 11px; padding: 2px 9px; border-radius: 0;
-      color: var(--accent); background: var(--panel); border-color: var(--border-2);
-      margin-left: -1px;
+    /* Three-dots menu: every command for the pod, run only on the one you pick. */
+    .menu-wrap { position: relative; display: inline-block; }
+    .dots {
+      font-size: 15px; line-height: 1; padding: 1px 9px; letter-spacing: 1px;
+      color: var(--muted); background: var(--panel); border-color: var(--border-2);
     }
-    .act.first { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
-    .act.more { border-radius: 0 var(--radius) var(--radius) 0; color: var(--muted); padding: 2px 8px; }
-    .act:hover { color: var(--panel); background: var(--accent); border-color: var(--accent); position: relative; }
+    .dots:hover, .dots.open { color: var(--accent); border-color: var(--accent); }
+
+    /* Fixed, positioned from the button's rect, so it escapes the grid's own
+       overflow:auto clipping instead of being cut off at the panel edge. */
+    .menu {
+      position: fixed; z-index: 50;
+      min-width: 244px; max-height: 70vh; overflow-y: auto; padding: 4px;
+      background: var(--panel); border: 1px solid var(--border-2); border-radius: var(--radius);
+      box-shadow: 0 10px 30px rgba(10, 16, 24, .24);
+      text-align: left;
+    }
+    .menu-head {
+      padding: 5px 9px 7px; margin-bottom: 3px;
+      font-family: var(--mono); font-size: 11px; color: var(--faint);
+      border-bottom: 1px solid var(--border);
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .menu button {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+      width: 100%; text-align: left;
+      padding: 6px 9px; border: none; border-radius: 4px; background: none;
+    }
+    .menu button:hover { background: var(--accent-bg); }
+    .menu .ml { font-size: 12.5px; color: var(--text); }
+    .menu button small { font-size: 10.5px; color: var(--faint); white-space: normal; line-height: 1.3; }
 
     .status {
       display: inline-flex; align-items: center; gap: 6px;
@@ -255,8 +282,8 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
     .c-status { width: 150px; }
     .c-ready, .c-restarts, .c-age { width: 84px; }
     .c-node { width: 130px; font-size: 12px; }
-    .c-actions { width: 200px; }
-    td.c-actions { text-align: right; }
+    .c-actions { width: 74px; }
+    td.c-actions { text-align: right; overflow: visible; }
     th:last-child, td:last-child { box-shadow: none; }
 
     .empty {
@@ -276,10 +303,6 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
     }
     @container (max-width: 700px) {
       .search { flex-basis: 100%; }
-      /* One button is enough when space is short: the row opens everything. */
-      .c-actions { width: 64px; }
-      .act:not(.first) { display: none; }
-      .act.first { border-radius: var(--radius); }
     }
     @container (max-width: 520px) {
       .c-ready { display: none; }
@@ -293,18 +316,23 @@ export class PodsComponent implements OnDestroy {
   readonly updatedAt = input<number>(0);
   /** Two-way: the header's issue counter flips this too. */
   readonly issuesOnly = model(false);
-  /** The fixed catalogue; the quick pod entries become the row buttons. */
+  /** The fixed catalogue; the needsPod entries fill each row's ⋯ menu. */
   readonly commands = input<CommandInfo[]>([]);
   /** Pod whose output window is open, so the row it came from stays marked. */
   readonly selected = input<string | null>(null);
 
-  /** A pod command was asked for, from a row button or the row itself. */
+  /** A specific pod command was picked from the menu. Nothing runs before this. */
   readonly action = output<{ id: string; pod: string }>();
 
   readonly filter = signal('');
   readonly copied = signal('');
   readonly sortKey = signal<SortKey>('name');
   readonly sortDir = signal<1 | -1>(1);
+
+  /** The pod whose ⋯ menu is open, and where to pin it (fixed coordinates). */
+  readonly menuFor = signal<string | null>(null);
+  readonly menuPos = signal<{ right: number; top: number | null; bottom: number | null }>(
+    { right: 0, top: 0, bottom: null });
 
   /** Ticks once a second so ages stay honest between polls. */
   private readonly now = signal(Date.now());
@@ -329,8 +357,43 @@ export class PodsComponent implements OnDestroy {
     return [...rows].sort((a, b) => direction * compare(a, b, key));
   });
 
-  readonly quickPodCommands = computed(() =>
-    this.commands().filter((command) => command.needsPod && command.quick));
+  readonly podCommands = computed(() =>
+    this.commands().filter((command) => command.needsPod));
+
+  /** Any click that is not on an open menu (or its trigger) closes it. */
+  @HostListener('document:click')
+  closeMenu(): void {
+    this.menuFor.set(null);
+  }
+
+  /** Scrolling the grid or resizing would leave the fixed menu stranded. */
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.menuFor.set(null);
+  }
+
+  toggleMenu(pod: string, event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.menuFor() === pod) {
+      this.menuFor.set(null);
+      return;
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    // Open upward when there is little room below, so the list is never clipped.
+    const openUp = window.innerHeight - rect.bottom < 320;
+    this.menuPos.set({
+      right: Math.round(window.innerWidth - rect.right),
+      top: openUp ? null : Math.round(rect.bottom + 4),
+      bottom: openUp ? Math.round(window.innerHeight - rect.top + 4) : null,
+    });
+    this.menuFor.set(pod);
+  }
+
+  /** The one moment a command runs: the item you pressed, for the pod you opened. */
+  pick(id: string, pod: string): void {
+    this.menuFor.set(null);
+    this.action.emit({ id, pod });
+  }
 
   onFilter(event: Event): void {
     this.filter.set((event.target as HTMLInputElement).value);

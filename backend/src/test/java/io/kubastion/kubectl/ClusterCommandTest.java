@@ -114,16 +114,27 @@ class ClusterCommandTest {
     }
 
     @Test
-    void quickCommandsAreTheOnesYouTypeAllDay() {
-        // The row buttons and the ribbon are built from this flag, so a change
-        // here is a UI change — make it deliberate.
+    void quickCommandsAreTheRibbonButtons() {
+        // The ribbon's front-row buttons are built from this flag (the rest fold
+        // into "More"); pod commands all live in the row menu, so none are quick.
+        // A change here is a visible UI change — make it deliberate.
         List<String> quick = ClusterCommand.all().stream()
                 .filter(ClusterCommand::quick).map(ClusterCommand::id).toList();
 
         assertEquals(List.of(
-                "pod-logs", "pod-describe", "pod-events",
                 "ns-events", "ns-workloads", "ns-services", "ns-configmaps", "ns-secrets", "ns-top-pods",
                 "cluster-nodes", "cluster-top-nodes", "cluster-namespaces"), quick);
+    }
+
+    @Test
+    void thePodMenuOffersEveryPodCommand() {
+        // The three-dots menu is built from every needsPod command, in order.
+        List<String> podCommands = ClusterCommand.all().stream()
+                .filter(ClusterCommand::needsPod).map(ClusterCommand::id).toList();
+
+        assertEquals(List.of(
+                "pod-logs", "pod-logs-previous", "pod-describe", "pod-events",
+                "pod-top", "pod-status", "pod-yaml", "pod-json"), podCommands);
     }
 
     @Test

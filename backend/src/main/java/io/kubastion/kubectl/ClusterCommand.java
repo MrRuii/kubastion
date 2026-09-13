@@ -22,19 +22,26 @@ import java.util.Optional;
 public enum ClusterCommand {
 
     // ------------------------------------------------------------------ pod
+    // Enum order is menu order: what you reach for most, first.
 
-    POD_LOGS("Logs", Scope.POD, true, true,
+    // Pod commands all live in the row's ⋯ menu, so none is a ribbon button
+    // (quick=false throughout); the flag only marks the ribbon's front row.
+    POD_LOGS("Logs", Scope.POD, true, false,
             "Recent output from every container in the pod."),
-    POD_DESCRIBE("Describe", Scope.POD, false, true,
-            "Conditions, image, probes and the recent events for this pod."),
-    POD_EVENTS("Events", Scope.POD, false, true,
-            "What Kubernetes has done to this pod lately, newest last."),
-    POD_LOGS_PREVIOUS("Logs (previous)", Scope.POD, true, false,
+    POD_LOGS_PREVIOUS("Logs (previous run)", Scope.POD, true, false,
             "Output from the run before the last restart — where a crash loop explains itself."),
-    POD_TOP("Top", Scope.POD, false, false,
+    POD_DESCRIBE("Describe", Scope.POD, false, false,
+            "Conditions, image, probes and the recent events for this pod."),
+    POD_EVENTS("Events", Scope.POD, false, false,
+            "What Kubernetes has done to this pod lately, newest last."),
+    POD_TOP("Resource usage", Scope.POD, false, false,
             "CPU and memory right now, per container. Needs metrics-server."),
+    POD_STATUS("Status (wide)", Scope.POD, false, false,
+            "One line: node, pod IP, readiness gates and nominated node."),
     POD_YAML("YAML", Scope.POD, false, false,
             "The full manifest as the cluster sees it."),
+    POD_JSON("JSON", Scope.POD, false, false,
+            "The same manifest as JSON, for piping into jq elsewhere."),
 
     // ------------------------------------------------------------ namespace
 
@@ -147,7 +154,9 @@ public enum ClusterCommand {
             case POD_EVENTS -> "get events --field-selector involvedObject.name=" + pod
                     + " --sort-by=.lastTimestamp";
             case POD_TOP -> "top pod " + pod + " --containers";
+            case POD_STATUS -> "get pod " + pod + " -o wide";
             case POD_YAML -> "get pod " + pod + " -o yaml";
+            case POD_JSON -> "get pod " + pod + " -o json";
 
             case NS_EVENTS -> "get events --sort-by=.lastTimestamp";
             case NS_WORKLOADS -> "get deployments,statefulsets,daemonsets -o wide";

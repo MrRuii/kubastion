@@ -110,9 +110,10 @@ carries the real marker.
 
 ### 4. Click a pod, get the command you were going to type anyway
 
-Every pod row carries the buttons you reach for all day — **Logs**, **Describe**,
-**Events** — and the window they open has the rest one tab away: **Logs (previous)** (the
-run before the crash), **Top**, **YAML**. Clicking the row itself opens Logs.
+Every pod row has a **⋯ menu** with the read-only commands for that pod — logs, previous
+logs (the run before the crash), describe, events, resource usage, wide status, YAML,
+JSON. **Nothing runs until you pick one**: opening the menu injects no command, and the
+window opens straight on the one you chose, with the rest a tab away.
 
 Above the grid, a ribbon runs the wider commands, split into **Namespace** — events,
 workloads, services, ingresses, configmaps, secrets, jobs, storage, autoscaling, top pods
