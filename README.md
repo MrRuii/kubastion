@@ -13,7 +13,7 @@
   <img alt="license PolyForm Shield 1.0.0" src="https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-3ec18c?style=flat-square">
   <img alt="Java 21" src="https://img.shields.io/badge/Java-21-4c9aff?style=flat-square">
   <img alt="Angular 18" src="https://img.shields.io/badge/Angular-18-4c9aff?style=flat-square">
-  <img alt="tests 77" src="https://img.shields.io/badge/tests-77-3ec18c?style=flat-square">
+  <img alt="tests 101" src="https://img.shields.io/badge/tests-101-3ec18c?style=flat-square">
   <img alt="status early" src="https://img.shields.io/badge/status-early-e8b04b?style=flat-square">
 </p>
 
@@ -63,11 +63,15 @@ password prompts, `ssh` asking to confirm a host key, curses UIs, colours, `Ctrl
 of it needs a TTY on the other end. With a PTY, everything behaves exactly as in your
 normal terminal, because it *is* one.
 
+**Ctrl+V pastes**, which matters more than it sounds: a credential checked out of a vault
+is a long random string, and nobody retypes one of those correctly. **Ctrl+C** copies when
+you have a selection and stays `SIGINT` when you do not, the way a terminal should.
+
 ### 2. You log in. All of it. By hand.
 
-Load the key, run `ssh`, walk the gateway menu, pick the destination, answer the MFA
-prompt — whatever your environment throws at you. kubastion watches none of it and
-automates none of it.
+Check the credential out of your vault, run `ssh`, walk the gateway menu, pick the
+destination, answer the MFA prompt — whatever your environment throws at you. kubastion
+watches none of it and automates none of it.
 
 **This is the design, not a missing feature.** Corporate gateways are unknowable: every
 company has a different menu, a different banner, a different number of hops. Any tool
@@ -77,8 +81,8 @@ out of the way, kubastion works with gateways it has never heard of — includin
 ### 3. Press *Start monitoring*
 
 Now that you are on the machine, kubastion starts doing the boring part: every 3 seconds
-it runs `kubectl get pods -o json` **in the session you just opened**, parses the result
-and renders it.
+it asks `kubectl` for the pods **in the session you just opened**, parses the result and
+renders it.
 
 ```
 browser                    kubastion (localhost)            your gateway        cluster
@@ -91,11 +95,11 @@ browser                    kubastion (localhost)            your gateway        
 ```
 
 The polled command and its output are **hidden from the terminal**, so your session stays
-readable instead of being flooded with JSON every three seconds. Keeping the two apart is
-the one genuinely tricky part of this project:
+readable instead of being flooded every three seconds. Keeping the two apart is the one
+genuinely tricky part of this project:
 
 ```
-echo "__KB<id>""S__"; kubectl -n <ns> get pods -o json 2>&1; echo "__KB<id>""E__"
+echo "__KB<id>""S__"; kubectl get pods -o jsonpath='…' 2>&1; echo "__KB<id>""E__"
 ```
 
 A random id per command, and the markers **split across two adjacent strings** on purpose.
@@ -107,6 +111,24 @@ carries the real marker.
 > **The injected command assumes a POSIX shell** (`;`, `2>&1`, string concatenation). That
 > is the point: by the time you press *Start monitoring* you are on the remote Linux
 > machine. Keep `terminal.command` empty so the local shell stays your OS default.
+
+### Why not `-o json`
+
+It was, and it broke on the first real cluster. `kubectl get pods -o json` drags
+`managedFields`, annotations and the whole spec along — hundreds of kilobytes even for a
+handful of pods — and all of it has to cross a pseudo-terminal, which on Windows renders
+into a screen buffer before emitting. It came back truncated, or wrapped through the
+middle of a token, and either way unparseable.
+
+So the command asks for exactly the eight fields the table shows, one short record per
+pod. The separators are the real trick: records end in `@@` and fields in `|`, characters
+no Kubernetes name, reason, node or timestamp can contain. That means **every line break
+can be thrown away before parsing**, which makes the terminal wrapping a long line
+harmless by construction rather than by luck. A namespace goes from hundreds of kilobytes
+to a few hundred bytes.
+
+The same lesson applies to anything you pipe through a terminal: newlines are not a safe
+record separator when something between you and the data is free to insert them.
 
 ### 4. Click a pod, get the command you were going to type anyway
 
@@ -306,14 +328,18 @@ and it is *yours*. A blocking `--watch` would hold the terminal hostage until yo
 it. A short command that starts and finishes leaves the session yours between polls.
 
 ```bash
-cd backend && ./mvnw test     # 77 tests, no cluster required
+cd backend && ./mvnw test     # 101 tests, no cluster required
 ```
 
 The tests cover the parts that fail quietly: terminal noise and ANSI stripping, kubectl
-errors arriving where JSON was expected, shell-injection attempts in both configuration
-and pod names, whether a keystroke counts as "you are mid-command", and every status
-precedence rule above. Two of them started as real bugs — a `Terminating` pod rendered
-green, and a JSON token split in half by a terminal that wrapped the line.
+errors arriving where the data should be, shell-injection attempts in both configuration
+and pod names, whether a keystroke counts as "you are mid-command", whether a prompt is
+waiting for a secret, and every status precedence rule above.
+
+Several began as real bugs rather than as ideas: a `Terminating` pod rendered green, a
+token split in half by a terminal that wrapped the line, a poller that typed into an ssh
+password prompt, an error message from `kubectl config view` shown as if it were the
+namespace, and a namespace that kept naming a cluster you had already left.
 
 ---
 
@@ -330,20 +356,25 @@ person.
 
 ## Roadmap
 
-Next, in order: **follow logs live** rather than a fixed tail, a namespace picker, and
-saving a filter you keep retyping. Deliberately not started until the above has been used
-in anger.
+Next, in order: **follow logs live** rather than a fixed tail, a namespace picker now that
+the current one is discovered automatically, and saving a filter you keep retyping. Each
+waits until the thing before it has been used in anger — that is how the list above earned
+its contents.
 
 ## Status
 
-Early, but verified end to end: PTY, interactive shell, command injection, output capture,
-JSON parsing, the live grid and the command window all work, with tests around the parts
-that break silently.
+Early, but now used against a real cluster through a real privileged-access gateway, which
+is what it was built for. PTY, interactive login, command injection, output capture,
+parsing, the live grid and the command window all work, with tests around the parts that
+break silently.
 
-What has *not* been exercised yet is a real corporate gateway — that is the next thing to
-find out, and the most useful thing you could report. One known rough edge: on Windows the
-local shell runs behind ConPTY, which re-renders its screen buffer, so resizing the window
-during a poll can briefly echo output that was meant to stay hidden.
+That first real run is where most of the current behaviour comes from: it is what replaced
+`-o json` with compact records, what taught the poller never to type into a password
+prompt, and what turned *Stop* into a real disconnect.
+
+One known rough edge remains: on Windows the local shell runs behind ConPTY, which
+re-renders its screen buffer, so resizing the window during a poll can briefly echo output
+that was meant to stay hidden.
 
 ## License
 
