@@ -1,0 +1,37 @@
+:root {
+  --bg: #0f1419;
+  --surface: #171d24;
+  --surface-2: #1e262f;
+  --border: #2a343f;
+  --text: #d5dde6;
+  --muted: #7c8b9c;
+  --accent: #4c9aff;
+  --ok: #3ec18c;
+  --warn: #e8b04b;
+  --bad: #e5534b;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+}
+
+button {
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: .45; cursor: not-allowed; }

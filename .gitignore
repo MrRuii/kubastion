@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────
+#  NEVER COMMIT ENVIRONMENT-SPECIFIC DATA
+#  Real hostnames, namespaces, internal URLs and service names
+#  must stay out of this repository. Only config.example.yml,
+#  with placeholders, is versioned.
+# ─────────────────────────────────────────────────────────────
+config.yml
+config.yaml
+config.local.*
+*.local.yml
+application-local.yml
+
+# Credentials — should never be here in the first place
+*.pem
+*.key
+*.ppk
+id_rsa*
+id_ed25519*
+known_hosts
+.env
+
+# Backend
+backend/target/
+*.class
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+
+# Tooling locale dell'editor/agente
+.claude/
