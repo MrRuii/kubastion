@@ -28,7 +28,21 @@ class KubectlCommandsTest {
     void buildsTheCommandWithTheNamespace() {
         String command = commands("kubectl", "production", "").getPods();
 
-        assertEquals("kubectl -n production get pods -o json", command);
+        assertTrue(command.startsWith("kubectl -n production get pods -o jsonpath="), command);
+    }
+
+    @Test
+    void thePodListIsCompactRatherThanFullJson() {
+        // -o json drags managedFields and the whole spec through the terminal,
+        // which is what made real clusters come back truncated.
+        String command = commands("kubectl", "demo", "").getPods();
+
+        assertFalse(command.contains("-o json "), command);
+        assertFalse(command.endsWith("-o json"), command);
+        assertTrue(command.contains("-o jsonpath="), command);
+        assertTrue(command.contains("--allow-missing-template-keys=true"), command);
+        // Records end in @@ so terminal wrapping cannot split them.
+        assertTrue(command.contains("@@"), command);
     }
 
     @Test
@@ -51,13 +65,13 @@ class KubectlCommandsTest {
         // typing `kubectl get pods` yourself in the session you logged into.
         String command = commands("kubectl", "", "").getPods();
 
-        assertEquals("kubectl get pods -o json", command);
+        assertTrue(command.startsWith("kubectl get pods -o jsonpath="), command);
         assertFalse(command.contains(" -n "), command);
     }
 
     @Test
     void aBlankNamespaceIsTreatedAsEmpty() {
-        assertEquals("kubectl get pods -o json", commands("kubectl", "   ", "").getPods());
+        assertFalse(commands("kubectl", "   ", "").getPods().contains(" -n "));
     }
 
     @Test

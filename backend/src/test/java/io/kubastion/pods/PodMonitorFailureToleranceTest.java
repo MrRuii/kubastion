@@ -1,6 +1,5 @@
 package io.kubastion.pods;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubastion.config.KubastionProperties;
 import io.kubastion.kubectl.KubectlCommands;
 import io.kubastion.terminal.TerminalService;
@@ -24,15 +23,20 @@ import static org.mockito.Mockito.when;
  */
 class PodMonitorFailureToleranceTest {
 
-    private static final String LIST = """
-            {"items":[{"metadata":{"name":"api"},"status":{"phase":"Running",
-              "containerStatuses":[{"ready":true,"restartCount":0,"state":{"running":{}}}]}}]}
-            """;
+    /** One healthy pod in the compact record format. */
+    private static final String LIST =
+            "api|demo|Running||node-01|2026-09-13T01:00:00Z|2026-09-13T01:00:00Z|true,0,,;@@";
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    /** A real failure: an error where the records should be. */
+    private static final String BROKEN = "error: unable to connect to the server";
 
     /** A monitor whose terminal returns the given payloads, one per poll. */
     private PodMonitorService monitor(String... payloads) {
+        return monitorInNamespace("demo", payloads);
+    }
+
+    /** Same, with an explicit configured namespace ("" = derive it). */
+    private PodMonitorService monitorInNamespace(String namespace, String... payloads) {
         TerminalService terminal = mock(TerminalService.class);
         when(terminal.isAlive()).thenReturn(true);
         when(terminal.busyReason(anyInt())).thenReturn(null);
@@ -42,17 +46,17 @@ class PodMonitorFailureToleranceTest {
 
         KubastionProperties props = new KubastionProperties(
                 new KubastionProperties.Terminal("", List.of()),
-                new KubastionProperties.Kubectl("kubectl", "demo", ""),
+                new KubastionProperties.Kubectl("kubectl", namespace, ""),
                 new KubastionProperties.Monitor(3, 15, 0));
-        return new PodMonitorService(terminal, new KubectlCommands(props), props, mapper);
+        return new PodMonitorService(terminal, new KubectlCommands(props), props);
     }
 
     @Test
-    void oneEmptyPollAfterASuccessKeepsTheTable() {
-        PodMonitorService service = monitor(LIST, "", LIST);
+    void oneFailedPollAfterASuccessKeepsTheTable() {
+        PodMonitorService service = monitor(LIST, BROKEN, LIST);
 
         service.tick();   // success
-        service.tick();   // a single empty capture
+        service.tick();   // a single failed capture
 
         PodsSnapshot snap = service.snapshot();
         assertEquals(PodsSnapshot.State.MONITORING, snap.state(),
@@ -61,19 +65,19 @@ class PodMonitorFailureToleranceTest {
     }
 
     @Test
-    void twoEmptyPollsInARowDoEscalate() {
-        PodMonitorService service = monitor(LIST, "", "");
+    void twoFailedPollsInARowDoEscalate() {
+        PodMonitorService service = monitor(LIST, BROKEN, BROKEN);
 
         service.tick();   // success
-        service.tick();   // empty #1 — absorbed
-        service.tick();   // empty #2 — escalates
+        service.tick();   // failure #1 — absorbed
+        service.tick();   // failure #2 — escalates
 
         assertEquals(PodsSnapshot.State.ERROR, service.snapshot().state());
     }
 
     @Test
     void aRecoveringPollClearsTheError() {
-        PodMonitorService service = monitor(LIST, "", "", LIST);
+        PodMonitorService service = monitor(LIST, BROKEN, BROKEN, LIST);
 
         service.tick();
         service.tick();
@@ -87,11 +91,25 @@ class PodMonitorFailureToleranceTest {
     @Test
     void theVeryFirstPollFailingSurfacesImmediately() {
         // Nothing on screen yet, so there is nothing to protect — say so at once.
-        PodMonitorService service = monitor("");
+        PodMonitorService service = monitor(BROKEN);
 
         service.tick();
 
         assertEquals(PodsSnapshot.State.ERROR, service.snapshot().state());
         assertTrue(service.snapshot().pods().isEmpty());
+    }
+
+    @Test
+    void anErrorFromTheNamespaceProbeNeverBecomesTheNamespace() {
+        // `kubectl config view --minify` fails with "current-context must exist
+        // in order to minify" when there is no context. That is a message, not a
+        // namespace, and it must not end up labelling the header.
+        PodMonitorService service = monitorInNamespace("",             // derive it
+                "",                                                    // no pods
+                "error: current-context must exist in order to minify"); // probe reply
+
+        service.tick();
+
+        assertEquals("", service.snapshot().namespace());
     }
 }

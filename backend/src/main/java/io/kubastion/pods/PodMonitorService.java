@@ -1,6 +1,5 @@
 package io.kubastion.pods;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubastion.config.KubastionProperties;
 import io.kubastion.kubectl.KubectlCommands;
 import io.kubastion.terminal.TerminalService;
@@ -33,7 +32,6 @@ public class PodMonitorService {
     private final TerminalService terminal;
     private final KubectlCommands kubectl;
     private final KubastionProperties props;
-    private final ObjectMapper mapper;
     private final List<Consumer<PodsSnapshot>> listeners = new CopyOnWriteArrayList<>();
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -60,12 +58,15 @@ public class PodMonitorService {
      */
     private static final int FAILURES_BEFORE_ERROR = 2;
 
+    /** RFC 1123: what a namespace name can actually look like. */
+    private static final java.util.regex.Pattern NAMESPACE =
+            java.util.regex.Pattern.compile("^[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?$");
+
     public PodMonitorService(TerminalService terminal, KubectlCommands kubectl,
-                             KubastionProperties props, ObjectMapper mapper) {
+                             KubastionProperties props) {
         this.terminal = terminal;
         this.kubectl = kubectl;
         this.props = props;
-        this.mapper = mapper;
     }
 
     public synchronized void start() {
@@ -174,15 +175,25 @@ public class PodMonitorService {
             String out = terminal.runCaptured(kubectl.currentNamespace())
                     .get(Math.max(2, props.monitor().timeoutSeconds()) + 2L, TimeUnit.SECONDS);
             String ns = io.kubastion.terminal.TerminalText.clean(out).strip();
-            // A blank context namespace means Kubernetes' own default: "default".
-            derivedNamespace = ns.isEmpty() ? "default" : ns.lines().reduce((a, b) -> b).orElse(ns).strip();
+            ns = ns.lines().reduce((a, b) -> b).orElse(ns).strip();
+
+            if (ns.isEmpty()) {
+                // A blank context namespace means Kubernetes' own default.
+                derivedNamespace = "default";
+            } else if (NAMESPACE.matcher(ns).matches()) {
+                derivedNamespace = ns;
+            }
+            // Anything else is kubectl talking back — "current-context must exist
+            // in order to minify", for one. That is a message, not a namespace,
+            // and putting it in the header would be worse than leaving it blank.
         } catch (Exception ignored) {
             // Best-effort only: the header just stays blank until pods appear.
         }
     }
 
     private void parse(String payload) {
-        switch (PodListParser.parse(payload, mapper)) {
+        log.debug("captured {} chars: [{}]", payload.length(), excerpt(payload));
+        switch (PodListParser.parse(payload)) {
             case PodListParser.Result.Pods found -> {
                 pods = found.pods();
                 state = PodsSnapshot.State.MONITORING;
@@ -214,6 +225,13 @@ public class PodMonitorService {
         if (changed) {
             publish();
         }
+    }
+
+    /** Enough of the payload to tell truncation from corruption in a log line. */
+    private static String excerpt(String payload) {
+        String flat = payload.replace("\r", "\\r").replace("\n", "\\n");
+        return flat.length() <= 240 ? flat
+                : flat.substring(0, 120) + " … " + flat.substring(flat.length() - 120);
     }
 
     private void publish() {

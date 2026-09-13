@@ -38,15 +38,40 @@ public class KubectlCommands {
     }
 
     /**
-     * Lists pods as JSON.
+     * The pod list, as one short record per pod.
+     *
+     * Not `-o json`: that drags managedFields, annotations and the whole spec
+     * along, which is hundreds of kilobytes for a real namespace. All of it has
+     * to travel through a pseudo-terminal that renders into a screen buffer, and
+     * output that large comes back truncated or wrapped through the middle of a
+     * token — either way unparseable. Asking for exactly the eight fields the
+     * table shows turns that into a couple of hundred bytes.
+     *
+     * The separators matter too. A terminal wraps any line to its width, so
+     * newlines cannot delimit records: instead records end with {@code @@} and
+     * fields with {@code |}, characters no Kubernetes name, reason, node or
+     * timestamp can contain. Every line break can then be thrown away before
+     * parsing, and wrapping becomes harmless.
      *
      * Polling is the right call here, not a fallback: the terminal session is
      * shared with the user, and a `--watch` would hold it open forever and stop
      * them from working.
      */
     public String getPods() {
-        return base() + " get pods -o json";
+        return base() + " get pods -o jsonpath='" + POD_TEMPLATE + "' --allow-missing-template-keys=true";
     }
+
+    /** Field order must match {@code PodListParser}. */
+    private static final String POD_TEMPLATE =
+            "{range .items[*]}"
+                    + "{.metadata.name}|{.metadata.namespace}|{.status.phase}|"
+                    + "{.metadata.deletionTimestamp}|{.spec.nodeName}|"
+                    + "{.status.startTime}|{.metadata.creationTimestamp}|"
+                    + "{range .status.containerStatuses[*]}"
+                    + "{.ready},{.restartCount},{.state.waiting.reason},{.state.terminated.reason};"
+                    + "{end}"
+                    + "@@"
+                    + "{end}";
 
     /**
      * Builds one of the catalogue commands.

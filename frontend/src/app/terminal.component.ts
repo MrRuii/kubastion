@@ -72,6 +72,37 @@ export class TerminalComponent implements AfterViewInit, OnDestroy {
 
       terminal.onData((data) => this.send({ type: 'input', data }));
 
+      // Copy and paste the way every other terminal on the machine does it.
+      // Ctrl+C keeps meaning SIGINT when nothing is selected — interrupting a
+      // command is what that key is for — and only copies when you have made a
+      // selection, which is the one case where SIGINT is not what you wanted.
+      terminal.attachCustomKeyEventHandler((event) => {
+        if (event.type !== 'keydown' || !(event.ctrlKey || event.metaKey) || event.altKey) {
+          return true;
+        }
+        const key = event.key.toLowerCase();
+        if (key === 'c' && terminal.hasSelection()) {
+          navigator.clipboard?.writeText(terminal.getSelection()).catch(() => undefined);
+          terminal.clearSelection();
+          return false;
+        }
+        if (key === 'v') {
+          navigator.clipboard?.readText()
+            .then((text) => { if (text) { this.send({ type: 'input', data: text }); } })
+            .catch(() => undefined);
+          return false;
+        }
+        return true;
+      });
+
+      // Middle-click and right-click paste, as on a Linux terminal.
+      this.host.nativeElement.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        navigator.clipboard?.readText()
+          .then((text) => { if (text) { this.send({ type: 'input', data: text }); } })
+          .catch(() => undefined);
+      });
+
       this.observer = new ResizeObserver(() => this.scheduleRefit());
       this.observer.observe(this.host.nativeElement);
 

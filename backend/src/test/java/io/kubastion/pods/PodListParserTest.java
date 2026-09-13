@@ -1,54 +1,48 @@
 package io.kubastion.pods;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The parser receives text that came out of a pseudo-terminal, not a clean HTTP
- * response: there can be noise before and after the JSON, ANSI sequences, and
- * every so often a kubectl error where the data should be. Those are the cases
- * that matter.
+ * response: ANSI sequences, carriage returns, lines wrapped at the window width,
+ * and every so often a kubectl error where the data should be. Those are the
+ * cases that matter.
  */
 class PodListParserTest {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    /** name|ns|phase|deletionTs|node|startTs|creationTs|containers@@ */
+    private static String record(String name, String phase, String deletion, String containers) {
+        return name + "|demo|" + phase + "|" + deletion + "|node-01|"
+                + "2026-09-13T01:00:00Z|2026-09-13T01:00:00Z|" + containers + "@@";
+    }
 
-    private static final String VALID_LIST = """
-            {
-              "apiVersion": "v1",
-              "kind": "List",
-              "items": [
-                {"metadata": {"name": "zeta"}, "status": {"phase": "Running",
-                  "containerStatuses": [{"ready": true, "restartCount": 0, "state": {"running": {}}}]}},
-                {"metadata": {"name": "alpha"}, "status": {"phase": "Running",
-                  "containerStatuses": [{"ready": true, "restartCount": 0, "state": {"running": {}}}]}}
-              ]
-            }
-            """;
+    private static final String RUNNING = record("zeta", "Running", "", "true,0,,;")
+            + record("alpha", "Running", "", "true,0,,;");
 
     private List<PodView> pods(String payload) {
-        PodListParser.Result result = PodListParser.parse(payload, mapper);
+        PodListParser.Result result = PodListParser.parse(payload);
         assertInstanceOf(PodListParser.Result.Pods.class, result,
                 () -> "expected success, got: " + result);
         return ((PodListParser.Result.Pods) result).pods();
     }
 
     private String failure(String payload) {
-        PodListParser.Result result = PodListParser.parse(payload, mapper);
+        PodListParser.Result result = PodListParser.parse(payload);
         assertInstanceOf(PodListParser.Result.Failure.class, result,
                 () -> "expected failure, got: " + result);
         return ((PodListParser.Result.Failure) result).message();
     }
 
     @Test
-    void validListIsSortedByName() {
-        List<PodView> pods = pods(VALID_LIST);
+    void recordsAreSortedByName() {
+        List<PodView> pods = pods(RUNNING);
 
         assertEquals(2, pods.size());
         assertEquals("alpha", pods.get(0).name());
@@ -56,63 +50,64 @@ class PodListParserTest {
     }
 
     @Test
-    void noiseBeforeTheJsonIsIgnored() {
-        // The command echo and the prompt always come before the real output.
-        String payload = "$ kubectl get pods -o json\n" + VALID_LIST;
+    void everyFieldSurvivesTheTrip() {
+        PodView pod = pods(record("billing", "Running", "", "true,2,,;false,7,CrashLoopBackOff,;")).get(0);
 
-        assertEquals(2, pods(payload).size());
+        assertEquals("billing", pod.name());
+        assertEquals("demo", pod.namespace());
+        assertEquals("CrashLoopBackOff", pod.status());
+        assertEquals("1/2", pod.ready());
+        assertEquals(9, pod.restarts());
+        assertEquals("node-01", pod.node());
+        assertFalse(pod.healthy());
     }
 
     @Test
-    void thePromptAfterTheJsonDoesNotBreakParsing() {
-        // The nastiest case: the terminal reprints the prompt right after.
-        String payload = VALID_LIST + "\nmike@jump:~$ ";
-
-        assertEquals(2, pods(payload).size());
-    }
-
-    @Test
-    void ansiSequencesAndCarriageReturnsAreStripped() {
-        String payload = "[0m[32m\r\n" + VALID_LIST.replace("\n", "\r\n") + "[0m";
-
-        assertEquals(2, pods(payload).size());
-    }
-
-    @Test
-    void aTokenSplitByTheTerminalWrapIsPutBackTogether() {
-        // The window was narrower than the line, so the terminal wrapped it in
-        // the middle of a word. This broke every poll on a small screen.
-        String wrapped = """
-                {"items": [
-                  {"metadata": {"name": "billing"}, "status": {"phase": "Running",
-                    "containerStatuses": [{"ready": false, "restartCount": 1,
-                      "state": {"waiting": {"reason": "CrashLoopBack
-                Off"}}}]}}
-                ]}
-                """;
+    void aLineWrappedThroughTheMiddleOfATokenStillParses() {
+        // This is the whole reason records end in @@ instead of a newline: the
+        // terminal wraps at its width, wherever that lands.
+        String wrapped = "billing|demo|Run\nning||node-01|2026-09-13T01:00:00Z|"
+                + "2026-09-13T01:00:00Z|true,0,,;@@";
 
         List<PodView> pods = pods(wrapped);
 
         assertEquals(1, pods.size());
-        assertEquals("CrashLoopBackOff", pods.get(0).status());
+        assertEquals("Running", pods.get(0).status());
     }
 
     @Test
-    void emptyNamespaceIsSuccessNotFailure() {
-        // kubectl prints no JSON when there is nothing: still a healthy state.
+    void carriageReturnsAndAnsiAreStripped() {
+        String noisy = "[0m[32m" + RUNNING.replace("@@", "@@\r\n") + "[0m";
+
+        assertEquals(2, pods(noisy).size());
+    }
+
+    @Test
+    void terminatingBeatsThePhase() {
+        PodView pod = pods(record("dying", "Running", "2026-09-13T01:00:00Z", "true,0,,;")).get(0);
+
+        assertEquals("Terminating", pod.status());
+        assertFalse(pod.healthy());
+    }
+
+    @Test
+    void aPodWithNoContainersYetDoesNotShowAMisleadingReady() {
+        PodView pod = pods(record("fresh", "Pending", "", "")).get(0);
+
+        assertEquals("-", pod.ready());
+        assertEquals("Pending", pod.status());
+    }
+
+    @Test
+    void emptyOutputIsAnEmptyNamespaceNotAFailure() {
+        // kubectl's jsonpath prints nothing at all when there is nothing.
+        assertTrue(pods("").isEmpty());
+        assertTrue(pods("   \r\n  ").isEmpty());
+    }
+
+    @Test
+    void noResourcesFoundIsSuccess() {
         assertTrue(pods("No resources found in demo namespace.").isEmpty());
-    }
-
-    @Test
-    void listWithEmptyItemsIsSuccess() {
-        assertTrue(pods("{\"apiVersion\":\"v1\",\"kind\":\"List\",\"items\":[]}").isEmpty());
-    }
-
-    @Test
-    void emptyOutputSaysWhatToCheck() {
-        String message = failure("   \n  ");
-
-        assertTrue(message.contains("connected"), () -> "unhelpful message: " + message);
     }
 
     @Test
@@ -141,18 +136,19 @@ class PodListParserTest {
     }
 
     @Test
-    void malformedJsonExplainsInsteadOfCrashing() {
-        String message = failure("{ this is not valid json ");
+    void aTruncatedRecordIsAFailureNotHalfATable() {
+        // Better to say the output was unreadable than to show a pod built from
+        // fields that never arrived.
+        String message = failure("billing|demo|Running@@");
 
-        assertTrue(message.contains("Could not interpret"), () -> "message: " + message);
+        assertTrue(message.startsWith("Could not interpret"), message);
     }
 
     @Test
-    void validJsonWithoutItemsIsAFailure() {
-        // For instance a single Pod instead of a List: better to say so than to
-        // show an empty table implying there is nothing there.
-        String message = failure("{\"kind\":\"Pod\",\"metadata\":{\"name\":\"lonely\"}}");
+    void aTrailingPartialRecordWithoutItsMarkerIsIgnored() {
+        // The last record always ends with @@; anything after it is noise.
+        List<PodView> pods = pods(RUNNING + "mike@jump:~$ ");
 
-        assertTrue(message.startsWith("{"), () -> "message: " + message);
+        assertEquals(2, pods.size());
     }
 }
