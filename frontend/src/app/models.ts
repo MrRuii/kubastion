@@ -4,6 +4,7 @@ export type MonitorState = 'IDLE' | 'MONITORING' | 'PAUSED' | 'ERROR';
 
 export interface PodView {
   name: string;
+  namespace: string;
   status: string;
   ready: string;
   restarts: number;

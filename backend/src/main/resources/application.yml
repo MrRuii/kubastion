@@ -21,7 +21,9 @@ kubastion:
     args: []
   kubectl:
     binary: kubectl
-    namespace: default
+    # Empty = the default namespace of your logged-in session (what you get by
+    # typing `kubectl get pods` yourself). Set a name only to watch another one.
+    namespace: ""
     context: ""
   monitor:
     interval-seconds: 3

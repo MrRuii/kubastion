@@ -138,6 +138,18 @@ class ClusterCommandTest {
     }
 
     @Test
+    void withoutANamespaceEveryNamespacedCommandDropsTheFlag() {
+        // Empty namespace = the session default, so no -n is passed anywhere —
+        // pod and namespace commands alike run where you already are.
+        for (ClusterCommand command : ClusterCommand.all()) {
+            String line = commands("", "").build(command, "some-pod", 100);
+            assertFalse(line.contains(" -n "), () -> command.id() + " leaked -n: " + line);
+        }
+        assertEquals("kubectl describe pod api",
+                commands("", "").build(ClusterCommand.POD_DESCRIBE, "api", null));
+    }
+
+    @Test
     void theContextIsCarriedWhenConfigured() {
         String line = commands("demo", "cluster-a").build(ClusterCommand.NS_EVENTS, null, null);
 

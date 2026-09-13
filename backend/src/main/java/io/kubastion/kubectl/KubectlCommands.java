@@ -27,7 +27,12 @@ public class KubectlCommands {
 
     public KubectlCommands(KubastionProperties props) {
         this.binary = requireBinary(props.kubectl().binary());
-        this.namespace = requireName(props.kubectl().namespace(), "kubectl.namespace");
+        // The namespace is optional. Left blank, kubastion passes no -n and runs
+        // `kubectl get pods` exactly as you would by hand — against the default
+        // namespace of the session you logged into. You configure it only when
+        // you want a namespace *other* than that default.
+        String ns = props.kubectl().namespace();
+        this.namespace = (ns == null || ns.isBlank()) ? "" : requireName(ns, "kubectl.namespace");
         String ctx = props.kubectl().context();
         this.context = (ctx == null || ctx.isBlank()) ? "" : requireName(ctx, "kubectl.context");
     }
@@ -67,8 +72,19 @@ public class KubectlCommands {
         return namespace;
     }
 
+    /**
+     * Asks the remote kubeconfig which namespace the current context defaults to
+     * — the one `kubectl get pods` uses when you type it by hand. Read-only, and
+     * only used to label the UI when no namespace was configured.
+     */
+    public String currentNamespace() {
+        return clusterBase() + " config view --minify --output jsonpath={..namespace}";
+    }
+
     private String base() {
-        return clusterBase() + " -n " + namespace;
+        // No namespace configured → no -n, so the command uses the default
+        // namespace of the session you are in, just like typing it yourself.
+        return namespace.isEmpty() ? clusterBase() : clusterBase() + " -n " + namespace;
     }
 
     private String clusterBase() {

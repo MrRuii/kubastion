@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  */
 public record PodView(
         String name,
+        String namespace,
         String status,
         String ready,
         int restarts,
@@ -21,6 +22,9 @@ public record PodView(
         JsonNode status = pod.path("status");
 
         String name = metadata.path("name").asText("");
+        // The pod tells us its own namespace — the cheapest way to learn which
+        // namespace we are actually watching when none was configured.
+        String namespace = metadata.path("namespace").asText("");
         String phase = status.path("phase").asText("");
 
         int ready = 0;
@@ -60,6 +64,7 @@ public record PodView(
 
         return new PodView(
                 name,
+                namespace,
                 display,
                 total == 0 ? "-" : ready + "/" + total,
                 restarts,

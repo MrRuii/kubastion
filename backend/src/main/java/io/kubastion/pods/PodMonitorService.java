@@ -48,6 +48,8 @@ public class PodMonitorService {
     private volatile String message = "";
     private volatile long updatedAt;
     private volatile int consecutiveFailures;
+    /** The context's default namespace, discovered once when none is configured. */
+    private volatile String derivedNamespace = "";
 
     /**
      * A single poll can come back empty for a harmless reason — a resize repaint
@@ -112,7 +114,22 @@ public class PodMonitorService {
     }
 
     public PodsSnapshot snapshot() {
-        return new PodsSnapshot(state, message, kubectl.namespace(), pods, updatedAt);
+        return new PodsSnapshot(state, message, displayNamespace(), pods, updatedAt);
+    }
+
+    /**
+     * What namespace to show in the header. A configured one wins; otherwise it
+     * is whatever the pods report (learned for free from their own metadata),
+     * or, once discovered, the current context's default.
+     */
+    private String displayNamespace() {
+        if (!kubectl.namespace().isEmpty()) {
+            return kubectl.namespace();
+        }
+        if (!pods.isEmpty() && !pods.get(0).namespace().isEmpty()) {
+            return pods.get(0).namespace();
+        }
+        return derivedNamespace;
     }
 
     // ------------------------------------------------------------- one round
@@ -136,9 +153,31 @@ public class PodMonitorService {
             String payload = terminal.runCaptured(kubectl.getPods())
                     .get(Math.max(2, props.monitor().timeoutSeconds()) + 2L, TimeUnit.SECONDS);
             parse(payload);
+            discoverNamespaceIfNeeded();
         } catch (Exception e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
             fail(cause.getMessage() == null ? cause.toString() : cause.getMessage());
+        }
+    }
+
+    /**
+     * When no namespace is configured and the pods have not revealed one — the
+     * namespace is empty, so there was nothing to read — ask the kubeconfig for
+     * the context default. Runs at most once, only in that corner, so it costs
+     * nothing in the normal case where pods name their own namespace.
+     */
+    private void discoverNamespaceIfNeeded() {
+        if (!kubectl.namespace().isEmpty() || !derivedNamespace.isEmpty() || !pods.isEmpty()) {
+            return;
+        }
+        try {
+            String out = terminal.runCaptured(kubectl.currentNamespace())
+                    .get(Math.max(2, props.monitor().timeoutSeconds()) + 2L, TimeUnit.SECONDS);
+            String ns = io.kubastion.terminal.TerminalText.clean(out).strip();
+            // A blank context namespace means Kubernetes' own default: "default".
+            derivedNamespace = ns.isEmpty() ? "default" : ns.lines().reduce((a, b) -> b).orElse(ns).strip();
+        } catch (Exception ignored) {
+            // Best-effort only: the header just stays blank until pods appear.
         }
     }
 

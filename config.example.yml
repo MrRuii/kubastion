@@ -12,11 +12,13 @@ kubastion:
     args: []
 
   kubectl:
-    # Path to kubectl ON THE REMOTE MACHINE, the one you reach through the
-    # terminal. Usually just "kubectl".
+    # kubectl ON THE REMOTE MACHINE, the one you reach through the terminal.
+    # Usually just "kubectl".
     binary: kubectl
-    # Namespace to watch.
-    namespace: my-namespace
+    # Namespace to watch. Leave EMPTY to watch the same pods `kubectl get pods`
+    # shows you by hand — the default namespace of the session you logged into.
+    # Set a name only to watch a DIFFERENT namespace than that default.
+    namespace: ""
     # Optional: passed as --context. Leave empty to use the remote default.
     context: ""
 

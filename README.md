@@ -224,7 +224,10 @@ until each one actually answers, and opens the browser. `Ctrl+C` stops both.
 ./start.sh
 ```
 
-Then set your namespace in `config.yml` (git-ignored) and restart.
+That is usually all the setup there is. By default kubastion watches the same pods
+`kubectl get pods` shows you by hand — the namespace of the session you logged into, which
+it derives and displays on its own. Edit `config.yml` (git-ignored) only to watch a
+*different* namespace, or if `kubectl` on the remote goes by another name.
 
 **Requirements:** Java 21+ and Node 20+. Nothing else — Maven ships with the repo via the
 wrapper, and **nothing at all needs to be installed on the remote machine.**
@@ -262,7 +265,7 @@ Only `config.example.yml`, with placeholders, is versioned.
 | `terminal.command` | local shell to open. Empty = your OS default (PowerShell / `$SHELL`) | `""` |
 | `terminal.args` | arguments for it | `[]` |
 | `kubectl.binary` | path to kubectl **on the remote machine** | `kubectl` |
-| `kubectl.namespace` | namespace to watch | `default` |
+| `kubectl.namespace` | namespace to watch — **empty = the session's own default**, which kubastion derives and shows | `""` |
 | `kubectl.context` | optional `--context`; empty uses the remote default | `""` |
 | `monitor.interval-seconds` | how often the command runs | `3` |
 | `monitor.timeout-seconds` | past this a command is considered lost and the terminal is handed back to you | `15` |

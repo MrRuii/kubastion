@@ -46,6 +46,21 @@ class KubectlCommandsTest {
     }
 
     @Test
+    void anEmptyNamespaceRunsAgainstTheSessionDefault() {
+        // No namespace configured means no -n at all — exactly what you get by
+        // typing `kubectl get pods` yourself in the session you logged into.
+        String command = commands("kubectl", "", "").getPods();
+
+        assertEquals("kubectl get pods -o json", command);
+        assertFalse(command.contains(" -n "), command);
+    }
+
+    @Test
+    void aBlankNamespaceIsTreatedAsEmpty() {
+        assertEquals("kubectl get pods -o json", commands("kubectl", "   ", "").getPods());
+    }
+
+    @Test
     void acceptsAFullPathForTheBinary() {
         String command = commands("/usr/local/bin/kubectl", "demo", "").getPods();
 
@@ -77,9 +92,11 @@ class KubectlCommandsTest {
     }
 
     @Test
-    void rejectsMissingValues() {
-        assertThrows(IllegalArgumentException.class, () -> commands("kubectl", "", ""));
+    void rejectsAMissingBinary() {
+        // The binary must always be present; the namespace, by contrast, is
+        // optional (empty = the session default).
         assertThrows(IllegalArgumentException.class, () -> commands("", "demo", ""));
+        assertThrows(IllegalArgumentException.class, () -> commands("   ", "demo", ""));
     }
 
     @Test
