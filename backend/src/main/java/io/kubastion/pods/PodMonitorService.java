@@ -47,6 +47,16 @@ public class PodMonitorService {
     private volatile PodsSnapshot.State state = PodsSnapshot.State.IDLE;
     private volatile String message = "";
     private volatile long updatedAt;
+    private volatile int consecutiveFailures;
+
+    /**
+     * A single poll can come back empty for a harmless reason — a resize repaint
+     * that happened to swallow it, one slow round. Once pods are on screen, one
+     * blip must not repaint the whole UI red: the table simply holds and the
+     * "updated Ns ago" ages until either the next poll succeeds or enough fail
+     * in a row that something is really wrong.
+     */
+    private static final int FAILURES_BEFORE_ERROR = 2;
 
     public PodMonitorService(TerminalService terminal, KubectlCommands kubectl,
                              KubastionProperties props, ObjectMapper mapper) {
@@ -63,6 +73,7 @@ public class PodMonitorService {
         int interval = Math.max(1, props.monitor().intervalSeconds());
         state = PodsSnapshot.State.MONITORING;
         message = "";
+        consecutiveFailures = 0;
         task = scheduler.scheduleWithFixedDelay(this::tick, 0, interval, TimeUnit.SECONDS);
         log.info("Pod monitoring started, every {}s", interval);
         publish();
@@ -106,7 +117,8 @@ public class PodMonitorService {
 
     // ------------------------------------------------------------- one round
 
-    private void tick() {
+    /** One polling round. Package-private so the failure-tolerance test can drive it. */
+    void tick() {
         if (!terminal.isAlive()) {
             fail("Terminal is not running. Open the page and log in.");
             return;
@@ -123,7 +135,6 @@ public class PodMonitorService {
             // is done, so two commands can never overlap in the session.
             String payload = terminal.runCaptured(kubectl.getPods())
                     .get(Math.max(2, props.monitor().timeoutSeconds()) + 2L, TimeUnit.SECONDS);
-            log.debug("captured {} chars: [{}]", payload.length(), excerpt(payload));
             parse(payload);
         } catch (Exception e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -137,6 +148,7 @@ public class PodMonitorService {
                 pods = found.pods();
                 state = PodsSnapshot.State.MONITORING;
                 message = "";
+                consecutiveFailures = 0;
                 updatedAt = System.currentTimeMillis();
                 publish();
             }
@@ -145,6 +157,11 @@ public class PodMonitorService {
     }
 
     private void fail(String reason) {
+        // Absorb the first failure or two while a table is already up: one bad
+        // poll should not flash red. With nothing on screen yet, surface it now.
+        if (++consecutiveFailures < FAILURES_BEFORE_ERROR && !pods.isEmpty()) {
+            return;
+        }
         state = PodsSnapshot.State.ERROR;
         message = reason == null ? "Unknown error" : reason;
         publish();
@@ -158,13 +175,6 @@ public class PodMonitorService {
         if (changed) {
             publish();
         }
-    }
-
-    /** Enough of the payload to tell truncation from corruption in a log line. */
-    private static String excerpt(String payload) {
-        String flat = payload.replace("\r", "\\r").replace("\n", "\\n");
-        return flat.length() <= 160 ? flat
-                : flat.substring(0, 80) + " … " + flat.substring(flat.length() - 80);
     }
 
     private void publish() {

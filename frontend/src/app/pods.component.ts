@@ -29,16 +29,6 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
         Only issues
       </label>
 
-      @if (clusterCommands().length > 0) {
-        <select class="picker" aria-label="Run a command"
-                [value]="''" (change)="onPick($event)">
-          <option value="">Run a command…</option>
-          @for (command of clusterCommands(); track command.id) {
-            <option [value]="command.id" [title]="command.description">{{ command.label }}</option>
-          }
-        </select>
-      }
-
       <span class="spacer"></span>
 
       <span class="result">
@@ -79,24 +69,21 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
                 <button type="button" (click)="sortBy('age')">Age{{ arrow('age') }}</button>
               </th>
               <th class="c-node">Node</th>
+              <th class="c-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
             @for (pod of visible(); track pod.name) {
               <tr [class.flagged]="!pod.healthy" [class.selected]="pod.name === selected()"
-                  (click)="inspect.emit(pod.name)"
-                  title="Logs, describe, events for this pod">
+                  (click)="action.emit({ id: 'pod-logs', pod: pod.name })"
+                  title="Open this pod">
                 <td class="c-name">
                   <span class="rail" [class.bad]="!pod.healthy"></span>
                   <span class="podname" [title]="pod.name">{{ pod.name }}</span>
-                  <span class="acts">
-                    <button type="button" class="act" [title]="'Logs for ' + pod.name"
-                            (click)="$event.stopPropagation(); inspect.emit(pod.name)">logs</button>
-                    <button type="button" class="copy" [title]="'Copy ' + pod.name"
-                            (click)="$event.stopPropagation(); copy(pod.name)">
-                      {{ copied() === pod.name ? 'copied' : 'copy' }}
-                    </button>
-                  </span>
+                  <button type="button" class="copy" [title]="'Copy ' + pod.name"
+                          (click)="$event.stopPropagation(); copy(pod.name)">
+                    {{ copied() === pod.name ? 'copied' : 'copy' }}
+                  </button>
                 </td>
                 <td class="c-status">
                   <span class="status" [class.bad]="!pod.healthy">
@@ -107,6 +94,19 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
                 <td class="c-restarts num mono" [class.warn]="pod.restarts > 0">{{ pod.restarts }}</td>
                 <td class="c-age num mono faint">{{ age(pod.startedAt) }}</td>
                 <td class="c-node faint">{{ pod.node || '—' }}</td>
+                <td class="c-actions">
+                  <span class="acts">
+                    @for (command of quickPodCommands(); track command.id) {
+                      <button type="button" class="act" [class.first]="$first"
+                              [title]="command.description"
+                              (click)="$event.stopPropagation(); action.emit({ id: command.id, pod: pod.name })">
+                        {{ command.label }}
+                      </button>
+                    }
+                    <button type="button" class="act more" title="Every command for this pod"
+                            (click)="$event.stopPropagation(); action.emit({ id: 'pod-logs', pod: pod.name })">…</button>
+                  </span>
+                </td>
               </tr>
             }
           </tbody>
@@ -115,7 +115,13 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
     }
   `,
   styles: [`
-    :host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+    /* The grid sizes itself to its panel, not to the window: side by side with
+       the terminal it is half as wide as the screen, and the columns have to
+       give way in the same order they would on a small screen. */
+    :host {
+      display: flex; flex-direction: column; height: 100%; min-height: 0;
+      container-type: inline-size;
+    }
 
     /* ── toolbar ──────────────────────────────────────────────────────── */
     .toolbar {
@@ -152,7 +158,6 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
     .toggle input { margin: 0; accent-color: var(--accent); }
     .toggle.on { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); }
 
-    .picker { font-size: 12px; padding: 4px 6px; max-width: 170px; }
     .result { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
     .link {
       font: inherit; font-size: 11.5px; background: none; border: none; padding: 0 0 0 6px;
@@ -215,17 +220,27 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
       font-family: var(--mono); font-size: 12px;
       min-width: 0; overflow: hidden; text-overflow: ellipsis;
     }
-    .acts { margin-left: auto; flex: none; display: flex; gap: 4px; padding-left: 8px; }
-    .act, .copy {
+    /* Copy is a convenience and only shows when the row is under the pointer. */
+    .copy {
+      margin-left: auto; flex: none;
       font-size: 10px; letter-spacing: .3px; padding: 1px 7px;
       color: var(--muted); background: var(--panel); border-color: var(--border-2);
+      opacity: 0; transition: opacity .12s ease;
     }
-    .act:hover, .copy:hover { color: var(--accent); border-color: var(--accent); }
-    /* Logs is the button you reach for all day, so it is always there.
-       Copy is a convenience and only shows when the row is under the pointer. */
-    .act { color: var(--accent); border-color: var(--border-2); }
-    .copy { opacity: 0; transition: opacity .12s ease; }
+    .copy:hover { color: var(--accent); border-color: var(--accent); }
     tr:hover .copy, .copy:focus-visible { opacity: 1; }
+
+    /* The commands you reach for all day, always visible, one click each.
+       Joined into a single segmented control so a row reads as one unit. */
+    .acts { display: inline-flex; }
+    .act {
+      font-size: 11px; padding: 2px 9px; border-radius: 0;
+      color: var(--accent); background: var(--panel); border-color: var(--border-2);
+      margin-left: -1px;
+    }
+    .act.first { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
+    .act.more { border-radius: 0 var(--radius) var(--radius) 0; color: var(--muted); padding: 2px 8px; }
+    .act:hover { color: var(--panel); background: var(--accent); border-color: var(--accent); position: relative; }
 
     .status {
       display: inline-flex; align-items: center; gap: 6px;
@@ -240,6 +255,8 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
     .c-status { width: 150px; }
     .c-ready, .c-restarts, .c-age { width: 84px; }
     .c-node { width: 130px; font-size: 12px; }
+    .c-actions { width: 200px; }
+    td.c-actions { text-align: right; }
     th:last-child, td:last-child { box-shadow: none; }
 
     .empty {
@@ -250,15 +267,21 @@ type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
     .empty p { margin: 0; }
 
     /* ── responsive: drop the columns you can live without ────────────── */
-    @media (max-width: 900px) {
+    @container (max-width: 1000px) {
       .c-node { display: none; }
     }
-    @media (max-width: 700px) {
+    @container (max-width: 820px) {
       .c-age { display: none; }
       .c-status { width: 130px; }
-      .search { flex-basis: 100%; }
     }
-    @media (max-width: 520px) {
+    @container (max-width: 700px) {
+      .search { flex-basis: 100%; }
+      /* One button is enough when space is short: the row opens everything. */
+      .c-actions { width: 64px; }
+      .act:not(.first) { display: none; }
+      .act.first { border-radius: var(--radius); }
+    }
+    @container (max-width: 520px) {
       .c-ready { display: none; }
       td, th button { padding-left: 8px; padding-right: 8px; }
     }
@@ -270,15 +293,13 @@ export class PodsComponent implements OnDestroy {
   readonly updatedAt = input<number>(0);
   /** Two-way: the header's issue counter flips this too. */
   readonly issuesOnly = model(false);
-  /** The fixed catalogue; the namespace-wide entries fill the toolbar picker. */
+  /** The fixed catalogue; the quick pod entries become the row buttons. */
   readonly commands = input<CommandInfo[]>([]);
   /** Pod whose output window is open, so the row it came from stays marked. */
   readonly selected = input<string | null>(null);
 
-  /** A row was clicked: open the command window for that pod. */
-  readonly inspect = output<string>();
-  /** A namespace or cluster command was picked from the toolbar. */
-  readonly runCommand = output<string>();
+  /** A pod command was asked for, from a row button or the row itself. */
+  readonly action = output<{ id: string; pod: string }>();
 
   readonly filter = signal('');
   readonly copied = signal('');
@@ -308,21 +329,11 @@ export class PodsComponent implements OnDestroy {
     return [...rows].sort((a, b) => direction * compare(a, b, key));
   });
 
-  readonly clusterCommands = computed(() =>
-    this.commands().filter((command) => !command.needsPod));
+  readonly quickPodCommands = computed(() =>
+    this.commands().filter((command) => command.needsPod && command.quick));
 
   onFilter(event: Event): void {
     this.filter.set((event.target as HTMLInputElement).value);
-  }
-
-  onPick(event: Event): void {
-    const select = event.target as HTMLSelectElement;
-    const id = select.value;
-    // Back to the placeholder, so picking the same command twice still runs it.
-    select.value = '';
-    if (id) {
-      this.runCommand.emit(id);
-    }
   }
 
   resetFilters(): void {

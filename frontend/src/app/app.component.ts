@@ -2,7 +2,7 @@ import {
   Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal,
 } from '@angular/core';
 import { KubastionService } from './kubastion.service';
-import { RunResult } from './models';
+import { CommandInfo, RunResult } from './models';
 import { OutputComponent } from './output.component';
 import { PodsComponent } from './pods.component';
 import { TerminalComponent } from './terminal.component';
@@ -68,6 +68,54 @@ const WIDE = '(min-width: 1180px)';
           <span class="k">Last update</span><span class="v small" [class.warn]="stale()">{{ updatedAgo() }}</span>
         </div>
       </section>
+
+      <nav class="ribbon" aria-label="Cluster commands">
+        <div class="group">
+          <span class="group-label">Namespace</span>
+          @for (command of quick('NAMESPACE'); track command.id) {
+            <button type="button" class="chip" [title]="command.description"
+                    [class.active]="activeCommand() === command.id && !drawerPod()"
+                    (click)="openCommand(command.id)">{{ command.label }}</button>
+          }
+          @if (more('NAMESPACE').length > 0) {
+            <details class="more" #nsMore>
+              <summary class="chip">More ▾</summary>
+              <div class="menu">
+                @for (command of more('NAMESPACE'); track command.id) {
+                  <button type="button" [title]="command.description"
+                          (click)="nsMore.open = false; openCommand(command.id)">
+                    <span>{{ command.label }}</span>
+                    <small>{{ command.description }}</small>
+                  </button>
+                }
+              </div>
+            </details>
+          }
+        </div>
+
+        <div class="group">
+          <span class="group-label">Cluster</span>
+          @for (command of quick('CLUSTER'); track command.id) {
+            <button type="button" class="chip" [title]="command.description"
+                    [class.active]="activeCommand() === command.id && !drawerPod()"
+                    (click)="openCommand(command.id)">{{ command.label }}</button>
+          }
+          @if (more('CLUSTER').length > 0) {
+            <details class="more" #clMore>
+              <summary class="chip">More ▾</summary>
+              <div class="menu">
+                @for (command of more('CLUSTER'); track command.id) {
+                  <button type="button" [title]="command.description"
+                          (click)="clMore.open = false; openCommand(command.id)">
+                    <span>{{ command.label }}</span>
+                    <small>{{ command.description }}</small>
+                  </button>
+                }
+              </div>
+            </details>
+          }
+        </div>
+      </nav>
     }
 
     @if (banner(); as note) {
@@ -106,7 +154,7 @@ const WIDE = '(min-width: 1180px)';
             <kb-pods [pods]="snapshot()?.pods ?? []" [updatedAt]="updatedAt()"
                      [(issuesOnly)]="issuesOnly"
                      [commands]="api.commands()" [selected]="drawerPod()"
-                     (inspect)="openPod($event)" (runCommand)="openCommand($event)" />
+                     (action)="openPodCommand($event)" />
           </div>
         </section>
       }
@@ -199,6 +247,45 @@ const WIDE = '(min-width: 1180px)';
     .clickable:hover { background: var(--panel-2); }
     .clickable.active { background: var(--bad-bg); box-shadow: inset 0 -2px 0 var(--bad); }
 
+    /* ── command ribbon ───────────────────────────────────────────────── */
+    .ribbon {
+      display: flex; align-items: center; gap: 6px 22px; flex: none; flex-wrap: wrap;
+      padding: 6px 12px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--border);
+    }
+    .group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .group-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--faint); margin-right: 4px; white-space: nowrap;
+    }
+    .chip {
+      font-size: 11.5px; padding: 3px 10px; border-radius: 100px;
+      color: var(--text); background: var(--panel); border: 1px solid var(--border-2);
+      cursor: pointer; white-space: nowrap; list-style: none;
+    }
+    .chip:hover { color: var(--accent); border-color: var(--accent); background: var(--panel); }
+    .chip.active { color: var(--panel); background: var(--accent); border-color: var(--accent); }
+
+    .more { position: relative; }
+    .more summary::-webkit-details-marker { display: none; }
+    .more summary { color: var(--muted); }
+    .more[open] summary { color: var(--accent); border-color: var(--accent); }
+    .menu {
+      position: absolute; top: calc(100% + 4px); left: 0; z-index: 30;
+      min-width: 260px; padding: 4px;
+      background: var(--panel); border: 1px solid var(--border-2); border-radius: var(--radius);
+      box-shadow: 0 6px 20px rgba(10, 16, 24, .16);
+    }
+    .menu button {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+      width: 100%; text-align: left;
+      padding: 6px 9px; border: none; border-radius: 4px; background: none;
+    }
+    .menu button:hover { background: var(--accent-bg); }
+    .menu button span { font-size: 12px; color: var(--text); }
+    .menu button small { font-size: 10.5px; color: var(--faint); white-space: normal; line-height: 1.3; }
+
     /* ── banner / steps ───────────────────────────────────────────────── */
     .banner {
       display: flex; align-items: center; gap: 9px; flex: none;
@@ -287,6 +374,9 @@ const WIDE = '(min-width: 1180px)';
     @media (max-width: 620px) {
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .stat:nth-child(n+3) { border-top: 1px solid var(--border); }
+      /* One scrollable strip beats a four-line wall of chips on a phone. */
+      .ribbon { flex-wrap: nowrap; overflow-x: auto; gap: 6px 16px; padding: 6px 10px; }
+      .group { flex-wrap: nowrap; }
       .field { display: none; }
       .steps { flex-direction: column; gap: 3px; }
       .statusbar .detail:last-child { display: none; }
@@ -345,13 +435,22 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // -------------------------------------------------------------- commands
 
-  /** A row was clicked: open the window on that pod's logs. */
-  openPod(pod: string): void {
-    this.drawerPod.set(pod);
-    this.runCommand('pod-logs');
+  /** Quick commands of one scope go in the ribbon; the rest fold into "More". */
+  quick(scope: 'NAMESPACE' | 'CLUSTER'): CommandInfo[] {
+    return this.api.commands().filter((command) => command.scope === scope && command.quick);
   }
 
-  /** A namespace or cluster command was picked from the toolbar. */
+  more(scope: 'NAMESPACE' | 'CLUSTER'): CommandInfo[] {
+    return this.api.commands().filter((command) => command.scope === scope && !command.quick);
+  }
+
+  /** A pod command from a row button, or the row itself (which means logs). */
+  openPodCommand(request: { id: string; pod: string }): void {
+    this.drawerPod.set(request.pod);
+    this.runCommand(request.id);
+  }
+
+  /** A namespace or cluster command from the ribbon. */
   openCommand(id: string): void {
     this.drawerPod.set(null);
     this.runCommand(id);

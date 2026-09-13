@@ -110,9 +110,14 @@ carries the real marker.
 
 ### 4. Click a pod, get the command you were going to type anyway
 
-Clicking a row opens a window with **Logs**, **Logs (previous)**, **Describe**, **Events**
-and **YAML** for that pod. The toolbar picker runs the namespace-wide ones: events,
-deployments, services, ingresses, configmaps, secrets, nodes, top pods.
+Every pod row carries the buttons you reach for all day — **Logs**, **Describe**,
+**Events** — and the window they open has the rest one tab away: **Logs (previous)** (the
+run before the crash), **Top**, **YAML**. Clicking the row itself opens Logs.
+
+Above the grid, a ribbon runs the wider commands, split into **Namespace** — events,
+workloads, services, ingresses, configmaps, secrets, jobs, storage, autoscaling, top pods
+— and **Cluster** — nodes, top nodes, namespaces, cluster-info, version. The handful you
+use most sit as buttons; the long tail folds into a **More** menu.
 
 The window always prints **the exact kubectl line that ran**, above its output. You should
 never have to guess what kubastion typed into your session on your behalf.

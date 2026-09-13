@@ -89,11 +89,11 @@ public class CommandsController {
     }
 
     public record CommandInfo(String id, String label, String scope, String description,
-                              boolean needsPod, boolean tailable) {
+                              boolean needsPod, boolean tailable, boolean quick) {
 
         static CommandInfo of(ClusterCommand command) {
             return new CommandInfo(command.id(), command.label(), command.scope().name(),
-                    command.description(), command.needsPod(), command.tailable());
+                    command.description(), command.needsPod(), command.tailable(), command.quick());
         }
     }
 }

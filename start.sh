@@ -99,7 +99,10 @@ frontend_pid=$!
 wait_port "$FRONTEND_PORT" 240 || fail "The frontend did not come up. See .logs/frontend.log"
 printf '  \033[32mfrontend ready\033[0m\n'
 
-URL="http://localhost:$FRONTEND_PORT"
+# 127.0.0.1, not localhost: the dev server binds IPv4 (see angular.json), so the
+# IPv4 literal avoids the dual-stack race where the browser reaches for ::1 and
+# the WebSocket upgrade is refused.
+URL="http://127.0.0.1:$FRONTEND_PORT"
 if [ "$OPEN_BROWSER" = "1" ]; then
     if command -v open >/dev/null 2>&1; then open "$URL" >/dev/null 2>&1 || true
     elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" >/dev/null 2>&1 || true

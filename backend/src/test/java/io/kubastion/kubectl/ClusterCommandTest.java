@@ -83,10 +83,47 @@ class ClusterCommandTest {
 
     @Test
     void nodesAreNotNamespaced() {
-        String line = build(ClusterCommand.NS_NODES, null, null);
+        String line = build(ClusterCommand.CLUSTER_NODES, null, null);
 
         assertFalse(line.contains("-n demo"), line);
         assertEquals("kubectl get nodes -o wide", line);
+    }
+
+    @Test
+    void scopeDecidesWhetherTheNamespaceIsPassed() {
+        // A cluster command with -n would silently be scoped to one namespace;
+        // a namespace command without it would hit whatever the remote default is.
+        for (ClusterCommand command : ClusterCommand.all()) {
+            String line = build(command, "some-pod", 100);
+            boolean namespaced = line.contains(" -n demo ");
+            if (command.scope() == ClusterCommand.Scope.CLUSTER) {
+                assertFalse(namespaced, () -> command.id() + " must not be namespaced: " + line);
+            } else {
+                assertTrue(namespaced, () -> command.id() + " must be namespaced: " + line);
+            }
+        }
+    }
+
+    @Test
+    void everyPodCommandNamesThePodAndNothingElseDoes() {
+        for (ClusterCommand command : ClusterCommand.all()) {
+            String line = build(command, "target-pod-x1", 100);
+            assertEquals(command.needsPod(), line.contains("target-pod-x1"),
+                    () -> command.id() + ": " + line);
+        }
+    }
+
+    @Test
+    void quickCommandsAreTheOnesYouTypeAllDay() {
+        // The row buttons and the ribbon are built from this flag, so a change
+        // here is a UI change — make it deliberate.
+        List<String> quick = ClusterCommand.all().stream()
+                .filter(ClusterCommand::quick).map(ClusterCommand::id).toList();
+
+        assertEquals(List.of(
+                "pod-logs", "pod-describe", "pod-events",
+                "ns-events", "ns-workloads", "ns-services", "ns-configmaps", "ns-secrets", "ns-top-pods",
+                "cluster-nodes", "cluster-top-nodes", "cluster-namespaces"), quick);
     }
 
     @Test

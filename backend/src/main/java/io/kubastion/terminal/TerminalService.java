@@ -77,8 +77,15 @@ public class TerminalService {
      */
     private static final int PROMPT_ECHO_CHUNKS = 2;
 
-    /** Extra room for the redraw that follows a resize held back by a capture. */
-    private static final int REFLOW_CHUNKS = 6;
+    /**
+     * After any resize the console repaints its whole screen buffer — and on
+     * Windows that buffer still holds the output we hid, so a window drag
+     * would dump the last poll's JSON into your terminal and then count it as
+     * a command of yours still running. Everything arriving this soon after a
+     * resize is that repaint: dropped, and not counted. xterm reflows its own
+     * buffer on resize, so nothing you could see is lost.
+     */
+    private static final long REFLOW_QUIET_MS = 800;
 
     /**
      * The console is never made narrower than this, however small the browser
@@ -96,6 +103,7 @@ public class TerminalService {
     private volatile Capture capture;
     private volatile long captureEndedAt;
     private volatile long lastOutputAt;
+    private volatile long resizedAt;
     private volatile int promptChunksLeft;
     private WinSize pendingSize;
 
@@ -246,6 +254,7 @@ public class TerminalService {
     private void applySize(WinSize size) {
         PtyProcess current = process;
         if (current != null) {
+            resizedAt = System.currentTimeMillis();
             current.setWinSize(size);
         }
     }
@@ -276,7 +285,11 @@ public class TerminalService {
     private void onOutput(String chunk) {
         Capture current = capture;
         if (current == null) {
-            long since = System.currentTimeMillis() - captureEndedAt;
+            long now = System.currentTimeMillis();
+            if (now - resizedAt < REFLOW_QUIET_MS) {
+                return;
+            }
+            long since = now - captureEndedAt;
             if (since <= PROMPT_ECHO_MS && promptChunksLeft > 0) {
                 promptChunksLeft--;
                 return;
@@ -411,10 +424,6 @@ public class TerminalService {
             }
         }
         if (deferred != null) {
-            // Applying it reflows the console, and a console reflow reprints
-            // what is in its screen buffer — which still holds the output we
-            // just hid. Give the swallow window room to absorb that reprint.
-            promptChunksLeft = PROMPT_ECHO_CHUNKS + REFLOW_CHUNKS;
             applySize(deferred);
         }
         current.timeout().cancel(false);

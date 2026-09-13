@@ -169,7 +169,10 @@ try {
     }
     Say "  frontend ready" Green
 
-    $url = "http://localhost:$FrontendPort"
+    # 127.0.0.1, not localhost: the dev server binds IPv4 (see angular.json), so
+    # opening the IPv4 literal avoids the dual-stack race where the browser
+    # reaches for ::1 and the WebSocket upgrade is refused.
+    $url = "http://127.0.0.1:$FrontendPort"
     if (-not $NoBrowser) { Start-Process $url | Out-Null }
 
     Write-Host ""

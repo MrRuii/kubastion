@@ -28,6 +28,8 @@ export interface CommandInfo {
   description: string;
   needsPod: boolean;
   tailable: boolean;
+  /** Used often enough to get a button of its own instead of a menu entry. */
+  quick: boolean;
 }
 
 export interface RunResult {
