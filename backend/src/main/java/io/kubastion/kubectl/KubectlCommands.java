@@ -33,18 +33,14 @@ public class KubectlCommands {
     }
 
     /**
-     * Stream di eventi sui pod. Non e' polling: l'API di Kubernetes spinge
-     * ADDED/MODIFIED/DELETED appena accadono, su una connessione che resta
-     * aperta. Piu' immediato e piu' leggero di un get ripetuto ogni N secondi.
+     * Elenco dei pod in JSON.
+     *
+     * Qui il polling e' la scelta giusta, non un ripiego: la sessione del
+     * terminale e' condivisa con l'utente, e un `--watch` la terrebbe occupata
+     * per sempre impedendogli di lavorare.
      */
-    public String watchPods() {
-        return base() + " get pods -o json --watch --output-watch-events";
-    }
-
-    public String logs(String podName, int tailLines) {
-        return base() + " logs " + requireName(podName, "pod")
-                + " --tail=" + Math.max(1, tailLines)
-                + " --all-containers=true --prefix=true";
+    public String getPods() {
+        return base() + " get pods -o json";
     }
 
     public String namespace() {

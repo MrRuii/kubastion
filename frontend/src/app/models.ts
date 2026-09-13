@@ -1,6 +1,6 @@
 /** Rispecchia i record del backend: PodsSnapshot / PodView. */
 
-export type Connection = 'CONNECTED' | 'RECONNECTING' | 'STARTING';
+export type MonitorState = 'IDLE' | 'MONITORING' | 'ERROR';
 
 export interface PodView {
   name: string;
@@ -13,7 +13,7 @@ export interface PodView {
 }
 
 export interface PodsSnapshot {
-  connection: Connection;
+  state: MonitorState;
   message: string;
   namespace: string;
   pods: PodView[];

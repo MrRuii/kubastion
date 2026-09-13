@@ -31,6 +31,25 @@
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
+        <!-- Pseudo-terminale vero: senza, i menu interattivi dei gateway e i
+             prompt non si comportano come in un terminale reale.
+             Su Windows usa ConPTY. E' la libreria del terminale di IntelliJ. -->
+        <dependency>
+            <groupId>org.jetbrains.pty4j</groupId>
+            <artifactId>pty4j</artifactId>
+            <version>0.12.13</version>
+            <exclusions>
+                <!-- purejavacomm serve alle porte seriali, non ai PTY, e non e'
+                     pubblicato su Maven Central: senza questa esclusione servirebbe
+                     aggiungere il repository JetBrains, che in molte aziende e'
+                     bloccato — cioe' esattamente dove questo progetto deve girare. -->
+                <exclusion>
+                    <groupId>org.jetbrains.pty4j</groupId>
+                    <artifactId>purejavacomm</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
         <!-- Nessun Lombok: il modello usa i record di Java 21.
              Una dipendenza in meno da far litigare con la versione del JDK. -->
 

@@ -1,7 +1,7 @@
 package io.kubastion.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.kubastion.pods.PodWatchService;
+import io.kubastion.pods.PodMonitorService;
 import io.kubastion.pods.PodsSnapshot;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -27,30 +27,30 @@ public class PodsWebSocketHandler extends TextWebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(PodsWebSocketHandler.class);
 
-    private final PodWatchService watch;
+    private final PodMonitorService monitor;
     private final ObjectMapper mapper;
     private final List<WebSocketSession> sessions = new CopyOnWriteArrayList<>();
     private final Consumer<PodsSnapshot> listener = this::broadcast;
 
-    public PodsWebSocketHandler(PodWatchService watch, ObjectMapper mapper) {
-        this.watch = watch;
+    public PodsWebSocketHandler(PodMonitorService monitor, ObjectMapper mapper) {
+        this.monitor = monitor;
         this.mapper = mapper;
     }
 
     @PostConstruct
     void register() {
-        watch.addListener(listener);
+        monitor.addListener(listener);
     }
 
     @PreDestroy
     void unregister() {
-        watch.removeListener(listener);
+        monitor.removeListener(listener);
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         sessions.add(session);
-        send(session, watch.snapshot());
+        send(session, monitor.snapshot());
     }
 
     @Override

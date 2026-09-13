@@ -2,8 +2,7 @@ spring:
   application:
     name: kubastion
   # La configurazione reale sta in config.yml nella root del progetto ed e'
-  # git-ignorata: e' li' che finiscono host, namespace e contesto veri.
-  # "optional:" evita che l'app esploda se il file non c'e' ancora.
+  # git-ignorata: e' li' che finiscono namespace e contesto veri.
   config:
     import:
       - optional:file:../config.yml
@@ -14,23 +13,19 @@ server:
   # Nessun bind esterno: kubastion parla solo con la tua macchina.
   address: 127.0.0.1
 
-# Valori di default, sovrascritti da config.yml
 kubastion:
-  ssh:
-    destination: jump
-    options:
-      - -o
-      - BatchMode=yes
-      - -o
-      - ServerAliveInterval=30
+  terminal:
+    # Shell locale aperta nel terminale del browser. Vuoto = automatica
+    # (powershell su Windows, $SHELL altrove). Da qui fai ssh-add, ssh, menu.
+    command: ""
+    args: []
   kubectl:
     binary: kubectl
     namespace: default
     context: ""
-  logs:
-    tail-lines: 300
-  watch:
-    retry-delay-seconds: 5
+  monitor:
+    interval-seconds: 3
+    timeout-seconds: 15
 
 logging:
   level:
