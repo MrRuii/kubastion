@@ -41,8 +41,9 @@ public record PodView(
 
         // Ordine di precedenza: in cancellazione batte tutto, poi il motivo di
         // blocco del container (CrashLoopBackOff, ImagePullBackOff...), poi la fase.
+        boolean terminating = metadata.hasNonNull("deletionTimestamp");
         String display;
-        if (metadata.hasNonNull("deletionTimestamp")) {
+        if (terminating) {
             display = "Terminating";
         } else if (!problem.isEmpty()) {
             display = problem;
@@ -51,8 +52,11 @@ public record PodView(
         }
 
         String startedAt = status.path("startTime").asText(metadata.path("creationTimestamp").asText(""));
-        boolean healthy = ("Running".equals(phase) && total > 0 && ready == total && problem.isEmpty())
-                || "Succeeded".equals(phase);
+        // healthy pilota il colore in tabella: deve concordare sempre con lo
+        // stato mostrato, altrimenti un pod "Terminating" comparirebbe in verde.
+        boolean healthy = !terminating
+                && (("Running".equals(phase) && total > 0 && ready == total && problem.isEmpty())
+                || "Succeeded".equals(phase));
 
         return new PodView(
                 name,

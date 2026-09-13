@@ -1,18 +1,14 @@
 package io.kubastion.pods;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubastion.config.KubastionProperties;
 import io.kubastion.kubectl.KubectlCommands;
 import io.kubastion.terminal.TerminalService;
-import io.kubastion.terminal.TerminalText;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
@@ -126,41 +122,14 @@ public class PodMonitorService {
     }
 
     private void parse(String payload) {
-        String text = TerminalText.clean(payload).trim();
-
-        if (text.contains("No resources found")) {
-            pods = List.of();
-            state = PodsSnapshot.State.MONITORING;
-            message = "";
-            publish();
-            return;
-        }
-
-        int brace = text.indexOf('{');
-        if (brace < 0) {
-            fail(text.isEmpty()
-                    ? "Nessun output da kubectl: sei collegato alla macchina giusta?"
-                    : firstLine(text));
-            return;
-        }
-        try {
-            JsonNode root = mapper.readTree(text.substring(brace));
-            JsonNode items = root.path("items");
-            if (!items.isArray()) {
-                fail(firstLine(text));
-                return;
+        switch (PodListParser.parse(payload, mapper)) {
+            case PodListParser.Result.Pods found -> {
+                pods = found.pods();
+                state = PodsSnapshot.State.MONITORING;
+                message = "";
+                publish();
             }
-            List<PodView> parsed = new ArrayList<>();
-            for (JsonNode item : items) {
-                parsed.add(PodView.from(item));
-            }
-            parsed.sort(Comparator.comparing(PodView::name));
-            pods = List.copyOf(parsed);
-            state = PodsSnapshot.State.MONITORING;
-            message = "";
-            publish();
-        } catch (Exception e) {
-            fail("Output di kubectl non interpretabile: " + firstLine(text));
+            case PodListParser.Result.Failure failure -> fail(failure.message());
         }
     }
 
@@ -168,10 +137,6 @@ public class PodMonitorService {
         state = PodsSnapshot.State.ERROR;
         message = reason == null ? "Errore sconosciuto" : reason;
         publish();
-    }
-
-    private static String firstLine(String text) {
-        return text.lines().filter(line -> !line.isBlank()).findFirst().orElse(text);
     }
 
     private void publish() {
