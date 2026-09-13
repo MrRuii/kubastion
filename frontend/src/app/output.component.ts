@@ -53,7 +53,7 @@ const TAIL_CHOICES = [50, 200, 1000, 5000];
         </button>
         <span class="spacer"></span>
         <label class="check">
-          <input type="checkbox" [checked]="wrap()" (change)="wrap.set(!wrap())"> wrap
+          <input type="checkbox" [checked]="wrap()" (change)="toggleWrap()"> wrap
         </label>
         <button type="button" (click)="copy()" [disabled]="!result()?.output">
           {{ copied() ? 'copied' : 'copy' }}
@@ -166,7 +166,16 @@ const TAIL_CHOICES = [50, 200, 1000, 5000];
       font-family: var(--mono); font-size: 12px; line-height: 1.5;
       color: var(--term-fg); white-space: pre;
     }
-    pre.wrap { white-space: pre-wrap; word-break: break-word; }
+    /* Hanging indent: a log entry starts hard against the left margin and its
+       wrapped continuation is pushed in, so the eye finds where each entry
+       begins instead of reading one undifferentiated block. Stack traces, which
+       are already indented at the source, keep their own shape on top of it. */
+    pre.wrap {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      padding-left: calc(12px + 4ch);
+      text-indent: -4ch;
+    }
     .note { margin: 0; padding: 16px; color: var(--faint); }
     .note.bad { color: var(--bad); background: var(--bad-bg); }
 
@@ -195,7 +204,16 @@ export class OutputComponent implements OnDestroy {
   readonly closed = output<void>();
 
   readonly tailChoices = TAIL_CHOICES;
-  readonly wrap = signal(false);
+
+  /**
+   * Wrapping is right for logs and wrong for everything else: a log line has no
+   * columns to preserve and scrolling sideways through a stack trace is
+   * miserable, while `describe` and the `get` tables only line up if left
+   * alone. So it follows the command until you say otherwise, and then your
+   * choice sticks.
+   */
+  private readonly wrapOverride = signal<boolean | null>(null);
+  readonly wrap = computed(() => this.wrapOverride() ?? !!this.active()?.tailable);
   readonly copied = signal(false);
   private copyTimer?: ReturnType<typeof setTimeout>;
 
@@ -216,6 +234,10 @@ export class OutputComponent implements OnDestroy {
     const text = this.output();
     return text ? text.split('\n').length : 0;
   });
+
+  toggleWrap(): void {
+    this.wrapOverride.set(!this.wrap());
+  }
 
   onTail(event: Event): void {
     this.tail.set(Number((event.target as HTMLSelectElement).value));
