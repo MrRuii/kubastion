@@ -112,4 +112,19 @@ class PodMonitorFailureToleranceTest {
 
         assertEquals("", service.snapshot().namespace());
     }
+
+    @Test
+    void aDerivedNamespaceIsForgottenWhenMonitoringStops() {
+        // It was true of the session you were in. Disconnect, and it would still
+        // be naming the dev cluster you left — a header quietly lying about what
+        // you are looking at.
+        PodMonitorService service = monitorInNamespace("", "", "team-billing");
+
+        service.tick();
+        assertEquals("team-billing", service.snapshot().namespace());
+
+        service.stop();
+
+        assertEquals("", service.snapshot().namespace());
+    }
 }

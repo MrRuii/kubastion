@@ -46,7 +46,15 @@ public class PodMonitorService {
     private volatile String message = "";
     private volatile long updatedAt;
     private volatile int consecutiveFailures;
-    /** The context's default namespace, discovered once when none is configured. */
+    /**
+     * The context's default namespace, discovered when none is configured.
+     *
+     * Scoped to one monitoring run and forgotten at both ends of it: the session
+     * it was read from is the only thing that makes it true. Kept across runs it
+     * would still name the dev cluster you disconnected from an hour ago, which
+     * is worse than showing nothing — the header would be quietly lying about
+     * what you are looking at.
+     */
     private volatile String derivedNamespace = "";
 
     /**
@@ -77,6 +85,7 @@ public class PodMonitorService {
         state = PodsSnapshot.State.MONITORING;
         message = "";
         consecutiveFailures = 0;
+        derivedNamespace = "";
         task = scheduler.scheduleWithFixedDelay(this::tick, 0, interval, TimeUnit.SECONDS);
         log.info("Pod monitoring started, every {}s", interval);
         publish();
@@ -92,6 +101,7 @@ public class PodMonitorService {
         message = "";
         pods = List.of();
         updatedAt = 0;
+        derivedNamespace = "";
         log.info("Pod monitoring stopped");
         publish();
     }

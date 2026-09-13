@@ -141,6 +141,10 @@ name, which is validated against injection before it goes anywhere near the shel
 This is the part that makes it usable rather than infuriating. While **you** are using the
 terminal, nothing is injected into it:
 
+- a prompt **waiting for a password**, a key passphrase, an OTP or a yes/no stops
+  everything. Typing a `kubectl` line into an ssh password prompt would submit it as a
+  failed authentication attempt — three of those lock you out of the machine you were
+  trying to reach, and your command ends up in a log as if it were a password
 - a **half-typed line** pauses polling entirely — type `kubectl get pods -n `, go make
   coffee, come back, and your line is exactly where you left it
 - so does **recent typing**, and **output still arriving** from a command of yours (so
@@ -203,6 +207,11 @@ This is the first thing your security team will ask, so it is the first thing do
   most a pod name; the command line is built on the backend and printed back to you.
 - **Everything it can run is read-only, and none of it can read a secret's value.** Both
   are enforced by tests over the whole catalogue, not by convention.
+- **It never types into a prompt asking for a secret.** Password, passphrase, OTP and
+  host-key questions all stop injection dead — the one case where an injected command
+  would do real damage.
+- **Stop & disconnect really disconnects.** It ends the session rather than just pausing
+  the table, so you are not left logged into a cluster the UI stopped reporting on.
 
 ---
 

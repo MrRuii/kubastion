@@ -39,7 +39,10 @@ const WIDE = '(min-width: 1180px)';
       </span>
 
       @if (monitoring()) {
-        <button type="button" (click)="api.stopMonitoring()">Stop monitoring</button>
+        <button type="button" (click)="api.stopMonitoring()"
+                title="Stop polling and hang up: the session ends and you are back to a fresh local shell">
+          Stop &amp; disconnect
+        </button>
       } @else {
         <button type="button" class="primary" (click)="api.startMonitoring()"
                 [disabled]="!api.backendOnline()">Start monitoring</button>

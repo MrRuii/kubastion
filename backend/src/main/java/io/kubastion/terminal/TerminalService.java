@@ -96,6 +96,9 @@ public class TerminalService {
      */
     private static final int MIN_COLUMNS = 80;
 
+    /** Enough trailing output to hold a prompt line, not enough to cost anything. */
+    private static final int TAIL_CHARS = 240;
+
     private final InputTracker input = new InputTracker();
 
     private PtyProcess process;
@@ -104,6 +107,8 @@ public class TerminalService {
     private volatile long captureEndedAt;
     private volatile long lastOutputAt;
     private volatile long resizedAt;
+    /** Tail of what the terminal has shown, used to spot a waiting prompt. */
+    private volatile String recentOutput = "";
     private volatile int promptChunksLeft;
     private WinSize pendingSize;
 
@@ -132,6 +137,7 @@ public class TerminalService {
             input.reset();
             lastOutputAt = 0;
             captureEndedAt = 0;
+            recentOutput = "";
 
             Thread reader = new Thread(this::pump, "terminal-reader");
             reader.setDaemon(true);
@@ -197,6 +203,14 @@ public class TerminalService {
      * it rather than describing internal state.
      */
     public String busyReason(int quietSeconds) {
+        // Before anything else: never type into a prompt that is waiting for a
+        // password, a passphrase, an OTP or a yes/no. An injected command there
+        // becomes a failed authentication attempt, and three of those lock you
+        // out of the very machine you were trying to reach.
+        if (SecretPrompt.isWaiting(recentOutput)) {
+            return "Paused: the session is waiting for a password or a confirmation. "
+                    + "kubastion never types there — answer it and polling resumes.";
+        }
         if (input.hasPendingLine()) {
             return "Paused: you have a command half-typed. Press Enter or Ctrl+C and polling resumes.";
         }
@@ -267,10 +281,35 @@ public class TerminalService {
         listeners.remove(listener);
     }
 
+    /**
+     * Ends the session and opens a fresh one, leaving you where you were before
+     * you connected anywhere.
+     *
+     * Closing the pty hangs up the shell, and ssh — its child — goes with it, so
+     * this really is a disconnect and not just a cleared screen.
+     */
+    public synchronized void restart() {
+        Capture pending = capture;
+        if (pending != null) {
+            pending.future().completeExceptionally(new IllegalStateException("Terminal restarted"));
+            capture = null;
+        }
+        if (process != null) {
+            process.destroy();
+            process = null;
+        }
+        toTerminal = null;
+        // Wipe screen and scrollback: the previous session's output belongs to a
+        // machine you are no longer on.
+        emit("[2J[3J[H");
+        ensureStarted();
+    }
+
     /** Reads PTY output and forwards it, except while a capture is running. */
     private void pump() {
+        PtyProcess mine = process;
         char[] buffer = new char[8192];
-        try (Reader reader = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8)) {
+        try (Reader reader = new InputStreamReader(mine.getInputStream(), StandardCharsets.UTF_8)) {
             int read;
             while ((read = reader.read(buffer)) != -1) {
                 onOutput(new String(buffer, 0, read));
@@ -278,7 +317,11 @@ public class TerminalService {
         } catch (IOException e) {
             log.debug("terminal read ended: {}", e.toString());
         } finally {
-            emit("\r\n[kubastion] session ended.\r\n");
+            // Only the session that is still current gets to announce its end —
+            // otherwise a deliberate restart would report itself as a crash.
+            if (process == mine) {
+                emit("\r\n[kubastion] session ended.\r\n");
+            }
         }
     }
 
@@ -299,6 +342,7 @@ public class TerminalService {
             if (since > PROMPT_SETTLE_MS) {
                 lastOutputAt = System.currentTimeMillis();
             }
+            rememberTail(chunk);
             emit(chunk);
             return;
         }
@@ -312,6 +356,17 @@ public class TerminalService {
                 ? current.buffer().substring(start + current.startMarker().length(), end)
                 : "";
         finishCapture(current, () -> current.future().complete(payload));
+    }
+
+    /**
+     * Keeps the last stretch of visible output, cleaned of escape sequences, so
+     * a prompt sitting at the end can be recognised for what it is.
+     */
+    private void rememberTail(String chunk) {
+        String merged = recentOutput + TerminalText.clean(chunk);
+        recentOutput = merged.length() <= TAIL_CHARS
+                ? merged
+                : merged.substring(merged.length() - TAIL_CHARS);
     }
 
     private void emit(String text) {
