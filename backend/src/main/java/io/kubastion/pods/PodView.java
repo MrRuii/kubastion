@@ -3,8 +3,8 @@ package io.kubastion.pods;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Proiezione di un pod verso la UI. Solo i campi che servono a capire in un
- * colpo d'occhio se qualcosa e' rotto: niente YAML integrale.
+ * A pod as the UI needs it: only the fields that tell you at a glance whether
+ * something is broken. No full YAML.
  */
 public record PodView(
         String name,
@@ -39,8 +39,8 @@ public record PodView(
             }
         }
 
-        // Ordine di precedenza: in cancellazione batte tutto, poi il motivo di
-        // blocco del container (CrashLoopBackOff, ImagePullBackOff...), poi la fase.
+        // Precedence: being deleted beats everything, then the container's
+        // blocking reason (CrashLoopBackOff, ImagePullBackOff…), then the phase.
         boolean terminating = metadata.hasNonNull("deletionTimestamp");
         String display;
         if (terminating) {
@@ -52,8 +52,8 @@ public record PodView(
         }
 
         String startedAt = status.path("startTime").asText(metadata.path("creationTimestamp").asText(""));
-        // healthy pilota il colore in tabella: deve concordare sempre con lo
-        // stato mostrato, altrimenti un pod "Terminating" comparirebbe in verde.
+        // healthy drives the colour in the table, so it must always agree with
+        // the status shown — otherwise a "Terminating" pod would render green.
         boolean healthy = !terminating
                 && (("Running".equals(phase) && total > 0 && ready == total && problem.isEmpty())
                 || "Succeeded".equals(phase));
@@ -68,7 +68,7 @@ public record PodView(
                 healthy);
     }
 
-    /** Estrae il motivo per cui un container non sta girando, se c'e'. */
+    /** Why a container is not running, if that is the case. */
     private static String problemOf(JsonNode state) {
         String waiting = state.path("waiting").path("reason").asText("");
         if (!waiting.isEmpty() && !"ContainerCreating".equals(waiting) && !"PodInitializing".equals(waiting)) {

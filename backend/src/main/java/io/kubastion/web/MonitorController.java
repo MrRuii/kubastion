@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Accende e spegne il polling dei pod. Lo stato vero arriva via WebSocket. */
+/** Turns pod polling on and off. Live state arrives over the WebSocket. */
 @RestController
 @RequestMapping("/api/monitor")
 public class MonitorController {

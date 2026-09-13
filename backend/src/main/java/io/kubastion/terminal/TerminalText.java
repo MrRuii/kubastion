@@ -2,21 +2,21 @@ package io.kubastion.terminal;
 
 import java.util.regex.Pattern;
 
-/** Pulizia del testo che esce da un terminale vero, prima di provare a parsarlo. */
+/** Cleans text coming out of a real terminal before anything tries to parse it. */
 public final class TerminalText {
 
-    /** Sequenze ANSI: colori, movimenti cursore, bracketed paste, titoli OSC. */
+    /** ANSI sequences: colours, cursor moves, bracketed paste, OSC titles. */
     private static final Pattern ANSI = Pattern.compile(
             "\\[[0-?]*[ -/]*[@-~]"        // CSI
                     + "|\\][^]*(?:|\\\\)"  // OSC
-                    + "|[@-Z\\\\-_]");    // sequenze a due caratteri
+                    + "|[@-Z\\\\-_]");    // two-character sequences
 
     private TerminalText() {
     }
 
     /**
-     * Toglie sequenze ANSI e ritorni carrello. Un PTY li inserisce sempre, e
-     * basta un \r di troppo per far fallire il parsing del JSON.
+     * Strips ANSI sequences and carriage returns. A PTY always injects them,
+     * and a single stray \r is enough to make JSON parsing fail.
      */
     public static String clean(String raw) {
         if (raw == null || raw.isEmpty()) {

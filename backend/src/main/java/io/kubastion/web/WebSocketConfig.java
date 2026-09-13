@@ -24,7 +24,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        // Solo origini locali: kubastion gira sulla tua macchina e con nessun altro parla.
+        // Local origins only: kubastion runs on your machine and talks to nobody else.
         registry.addHandler(pods, "/ws/pods").setAllowedOrigins(LOCAL_ORIGINS);
         registry.addHandler(terminal, "/ws/terminal").setAllowedOrigins(LOCAL_ORIGINS);
     }

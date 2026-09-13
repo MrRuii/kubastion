@@ -18,12 +18,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
- * Quando premi "start monitoring", questo servizio inietta `kubectl get pods`
- * nella sessione del terminale ogni N secondi e ne parsa l'output.
+ * When you press "start monitoring", this service injects `kubectl get pods`
+ * into the terminal session every few seconds and parses the output.
  *
- * Il presupposto e' esplicito: tocca a te esserti gia' collegato alla macchina
- * giusta dentro il terminale. kubastion non indovina dove sei — esegue il
- * comando dove sei tu.
+ * The assumption is explicit: getting to the right machine is your job, done by
+ * hand in the terminal. kubastion does not guess where you are — it runs the
+ * command wherever you happen to be.
  */
 @Service
 public class PodMonitorService {
@@ -63,7 +63,7 @@ public class PodMonitorService {
         state = PodsSnapshot.State.MONITORING;
         message = "";
         task = scheduler.scheduleWithFixedDelay(this::tick, 0, interval, TimeUnit.SECONDS);
-        log.info("Monitoraggio pod avviato, intervallo {}s", interval);
+        log.info("Pod monitoring started, every {}s", interval);
         publish();
     }
 
@@ -76,7 +76,7 @@ public class PodMonitorService {
         state = PodsSnapshot.State.IDLE;
         message = "";
         pods = List.of();
-        log.info("Monitoraggio pod fermato");
+        log.info("Pod monitoring stopped");
         publish();
     }
 
@@ -102,16 +102,16 @@ public class PodMonitorService {
         return new PodsSnapshot(state, message, kubectl.namespace(), pods, System.currentTimeMillis());
     }
 
-    // ---------------------------------------------------------------- il giro
+    // ------------------------------------------------------------- one round
 
     private void tick() {
         if (!terminal.isAlive()) {
-            fail("Terminale non attivo: apri la pagina e collegati.");
+            fail("Terminal is not running. Open the page and log in.");
             return;
         }
         try {
-            // scheduleWithFixedDelay: il giro successivo parte solo a questo
-            // concluso, quindi due comandi non si sovrappongono mai.
+            // scheduleWithFixedDelay: the next round only starts once this one
+            // is done, so two commands can never overlap in the session.
             String payload = terminal.runCaptured(kubectl.getPods())
                     .get(Math.max(2, props.monitor().timeoutSeconds()) + 2L, TimeUnit.SECONDS);
             parse(payload);
@@ -135,7 +135,7 @@ public class PodMonitorService {
 
     private void fail(String reason) {
         state = PodsSnapshot.State.ERROR;
-        message = reason == null ? "Errore sconosciuto" : reason;
+        message = reason == null ? "Unknown error" : reason;
         publish();
     }
 
@@ -145,7 +145,7 @@ public class PodMonitorService {
             try {
                 listener.accept(snapshot);
             } catch (Exception e) {
-                log.debug("listener in errore, ignorato: {}", e.toString());
+                log.debug("listener failed, ignored: {}", e.toString());
             }
         }
     }

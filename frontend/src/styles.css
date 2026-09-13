@@ -10,6 +10,8 @@
   --warn: #e8b04b;
   --bad: #e5534b;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 5px;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -17,10 +19,12 @@
 html, body {
   margin: 0;
   padding: 0;
+  height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: var(--mono);
   font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
 
 button {
@@ -29,9 +33,23 @@ button {
   color: var(--text);
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 4px 10px;
+  border-radius: var(--radius);
+  padding: 5px 11px;
   cursor: pointer;
+  transition: color .12s ease, border-color .12s ease, background .12s ease;
 }
-button:hover { border-color: var(--accent); color: var(--accent); }
-button:disabled { opacity: .45; cursor: not-allowed; }
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+::selection { background: rgba(76, 154, 255, .3); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 2px solid var(--bg);
+  border-radius: 100px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }

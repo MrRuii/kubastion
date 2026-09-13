@@ -1,0 +1,17 @@
+# Normalise line endings so the repository is identical on every machine and
+# git stops warning about LF/CRLF on each command.
+* text=auto eol=lf
+
+# Windows scripts: cmd.exe mishandles LF around labels and line continuations,
+# so these two keep CRLF even though everything else is LF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Shell scripts must stay LF or the shebang breaks.
+*.sh text eol=lf
+mvnw text eol=lf
+
+# Binary assets must never be touched
+*.png binary
+*.jpg binary
+*.ico binary

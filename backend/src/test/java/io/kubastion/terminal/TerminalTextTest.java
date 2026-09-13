@@ -5,48 +5,48 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Un PTY infila sequenze di controllo ovunque. Basta un \r di troppo perche' il
- * JSON non si parsi piu': questa pulizia sta prima di tutto il resto.
+ * A PTY sprinkles control sequences everywhere. One stray \r is enough for the
+ * JSON to stop parsing, so this cleanup runs before everything else.
  */
 class TerminalTextTest {
 
     @Test
-    void toglieIColori() {
-        assertEquals("ciao", TerminalText.clean("[32mciao[0m"));
+    void stripsColours() {
+        assertEquals("hello", TerminalText.clean("[32mhello[0m"));
     }
 
     @Test
-    void toglieIMovimentiDelCursore() {
-        assertEquals("testo", TerminalText.clean("[2J[H testo".replace(" ", "")));
+    void stripsCursorMovement() {
+        assertEquals("text", TerminalText.clean("[2J[Htext"));
     }
 
     @Test
-    void toglieIlTitoloDellaFinestra() {
-        // Molti prompt aggiornano il titolo del terminale a ogni comando.
-        assertEquals("dopo", TerminalText.clean("]0;utente@host: ~dopo"));
+    void stripsTheWindowTitleSequence() {
+        // Plenty of prompts rewrite the terminal title on every command.
+        assertEquals("after", TerminalText.clean("]0;user@host: ~after"));
     }
 
     @Test
-    void toglieIRitorniCarrelloMaTieneLeRigheNuove() {
+    void dropsCarriageReturnsButKeepsNewlines() {
         assertEquals("a\nb", TerminalText.clean("a\r\nb"));
     }
 
     @Test
-    void testoNormaleRestaIntatto() {
+    void plainTextIsLeftAlone() {
         String json = "{\"items\": [], \"kind\": \"List\"}";
 
         assertEquals(json, TerminalText.clean(json));
     }
 
     @Test
-    void gestisceNullEVuoto() {
+    void handlesNullAndEmpty() {
         assertEquals("", TerminalText.clean(null));
         assertEquals("", TerminalText.clean(""));
     }
 
     @Test
-    void nonMangiaLeParentesiGraffeDelJson() {
-        // Verifica che la regex ANSI non sia troppo golosa su caratteri comuni.
+    void doesNotEatJsonBraces() {
+        // Guards against an ANSI regex that is too greedy on common characters.
         String payload = "[0m{\"a\":[1,2]}[K";
 
         assertEquals("{\"a\":[1,2]}", TerminalText.clean(payload));

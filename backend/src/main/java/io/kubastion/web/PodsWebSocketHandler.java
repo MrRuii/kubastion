@@ -18,9 +18,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /**
- * Spinge lo stato dei pod alla UI appena cambia. Alla connessione manda subito
- * lo snapshot corrente, cosi' la tabella e' popolata senza aspettare il primo
- * evento del cluster.
+ * Pushes pod state to the UI as soon as it changes. On connect it sends the
+ * current snapshot straight away, so the table is populated without waiting for
+ * the next polling round.
  */
 @Component
 public class PodsWebSocketHandler extends TextWebSocketHandler {
@@ -67,14 +67,14 @@ public class PodsWebSocketHandler extends TextWebSocketHandler {
     private void send(WebSocketSession session, PodsSnapshot snapshot) {
         try {
             String payload = mapper.writeValueAsString(snapshot);
-            // WebSocketSession non e' thread-safe: gli invii vanno serializzati
+            // WebSocketSession is not thread-safe: sends must be serialised
             synchronized (session) {
                 if (session.isOpen()) {
                     session.sendMessage(new TextMessage(payload));
                 }
             }
         } catch (Exception e) {
-            log.debug("invio websocket fallito, sessione rimossa: {}", e.toString());
+            log.debug("websocket send failed, dropping session: {}", e.toString());
             sessions.remove(session);
         }
     }

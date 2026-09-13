@@ -3,10 +3,10 @@ import { Injectable, NgZone, inject, signal } from '@angular/core';
 import { PodsSnapshot } from './models';
 
 /**
- * Unico punto di contatto col backend locale.
+ * The only point of contact with the local backend.
  *
- * Due canali distinti: uno per lo stato dei pod (JSON), uno per i byte del
- * terminale. Restano separati perche' hanno volumi e scopi diversi.
+ * Two separate channels: one for pod state (JSON), one for the terminal bytes.
+ * They stay apart because their volume and their purpose are nothing alike.
  */
 @Injectable({ providedIn: 'root' })
 export class KubastionService {
@@ -35,7 +35,7 @@ export class KubastionService {
       try {
         this.snapshot.set(JSON.parse(event.data as string) as PodsSnapshot);
       } catch {
-        // messaggio malformato: il prossimo snapshot rimette a posto
+        // malformed message: the next snapshot puts it right
       }
     });
 

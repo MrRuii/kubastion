@@ -3,10 +3,10 @@ package io.kubastion.pods;
 import java.util.List;
 
 /**
- * Stato del monitoraggio inviato alla UI.
+ * Monitoring state pushed to the UI.
  *
- * Si manda sempre la lista intera: con qualche decina di pod costa nulla ed
- * elimina un'intera categoria di bug di sincronizzazione.
+ * The whole list is sent every time: with a few dozen pods it costs nothing and
+ * it removes an entire class of synchronisation bugs.
  */
 public record PodsSnapshot(
         State state,
@@ -16,11 +16,11 @@ public record PodsSnapshot(
         long updatedAt) {
 
     public enum State {
-        /** Monitoraggio spento: stai usando il terminale e basta. */
+        /** Monitoring off: you are just using the terminal. */
         IDLE,
-        /** Polling attivo, l'ultimo giro e' andato bene. */
+        /** Polling is on and the last round succeeded. */
         MONITORING,
-        /** Polling attivo ma l'ultimo comando e' fallito: il motivo e' in message. */
+        /** Polling is on but the last command failed; the reason is in message. */
         ERROR
     }
 

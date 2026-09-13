@@ -17,6 +17,9 @@
             "browser": "src/main.ts",
             "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.json",
+            "assets": [
+              { "glob": "**/*", "input": "src/assets", "output": "assets" }
+            ],
             "styles": [
               "node_modules/@xterm/xterm/css/xterm.css",
               "src/styles.css"
@@ -41,5 +44,8 @@
         }
       }
     }
+  },
+  "cli": {
+    "analytics": false
   }
 }

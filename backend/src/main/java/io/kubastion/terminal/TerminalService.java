@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.Writer;
@@ -29,15 +28,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
- * Una sola sessione di terminale, aperta su una shell locale.
+ * A single terminal session, attached to a local shell.
  *
- * Il login lo fai tu dentro il terminale: chiave, ssh, menu del gateway,
- * destinazione. kubastion non sa nulla di tutto questo e non ci si intromette —
- * e' esattamente il motivo per cui funziona con qualunque gateway.
+ * You do the login yourself inside it: key, ssh, gateway menu, destination.
+ * kubastion knows nothing about any of that and never interferes — which is
+ * exactly why it works with gateways it has never seen.
  *
- * Quando serve, l'applicazione inietta un comando nella stessa sessione e ne
- * cattura l'output fra due marcatori, nascondendolo al terminale: altrimenti
- * ogni tre secondi ti troveresti addosso una pagina di JSON.
+ * When asked, it injects a command into that same session and captures the
+ * output between two markers, hiding it from the terminal: otherwise you would
+ * get a page of JSON thrown at you every few seconds.
  */
 @Service
 public class TerminalService {
@@ -60,7 +59,7 @@ public class TerminalService {
         this.props = props;
     }
 
-    // ------------------------------------------------------------ ciclo vita
+    // ------------------------------------------------------------- lifecycle
 
     public synchronized void ensureStarted() {
         if (isAlive()) {
@@ -68,7 +67,7 @@ public class TerminalService {
         }
         try {
             Map<String, String> env = new HashMap<>(System.getenv());
-            // senza TERM molti programmi interattivi si comportano da "dumb"
+            // without TERM many interactive programs fall back to "dumb" mode
             env.putIfAbsent("TERM", "xterm-256color");
 
             process = new PtyProcessBuilder()
@@ -82,9 +81,9 @@ public class TerminalService {
             Thread reader = new Thread(this::pump, "terminal-reader");
             reader.setDaemon(true);
             reader.start();
-            log.info("Terminale avviato: {}", String.join(" ", shellCommand()));
+            log.info("Terminal started: {}", String.join(" ", shellCommand()));
         } catch (IOException e) {
-            throw new IllegalStateException("Impossibile avviare il terminale: " + e.getMessage(), e);
+            throw new IllegalStateException("Could not start the terminal: " + e.getMessage(), e);
         }
     }
 
@@ -96,7 +95,7 @@ public class TerminalService {
     public synchronized void stop() {
         Capture pending = capture;
         if (pending != null) {
-            pending.future().completeExceptionally(new IllegalStateException("Terminale chiuso"));
+            pending.future().completeExceptionally(new IllegalStateException("Terminal closed"));
             capture = null;
         }
         if (process != null) {
@@ -128,7 +127,7 @@ public class TerminalService {
 
     // ------------------------------------------------------------------- I/O
 
-    /** Quello che digiti nel browser finisce qui, tale e quale. */
+    /** Whatever you type in the browser lands here, byte for byte. */
     public void write(String data) {
         Writer writer = toTerminal;
         if (writer == null) {
@@ -140,7 +139,7 @@ public class TerminalService {
                 writer.flush();
             }
         } catch (IOException e) {
-            log.debug("scrittura sul terminale fallita: {}", e.toString());
+            log.debug("terminal write failed: {}", e.toString());
         }
     }
 
@@ -159,7 +158,7 @@ public class TerminalService {
         listeners.remove(listener);
     }
 
-    /** Legge l'output del PTY e lo inoltra, salvo quando stiamo catturando. */
+    /** Reads PTY output and forwards it, except while a capture is running. */
     private void pump() {
         char[] buffer = new char[8192];
         try (Reader reader = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8)) {
@@ -168,9 +167,9 @@ public class TerminalService {
                 onOutput(new String(buffer, 0, read));
             }
         } catch (IOException e) {
-            log.debug("lettura terminale terminata: {}", e.toString());
+            log.debug("terminal read ended: {}", e.toString());
         } finally {
-            emit("\r\n[kubastion] sessione terminata.\r\n");
+            emit("\r\n[kubastion] session ended.\r\n");
         }
     }
 
@@ -197,36 +196,36 @@ public class TerminalService {
             try {
                 listener.accept(text);
             } catch (Exception e) {
-                log.debug("listener terminale in errore: {}", e.toString());
+                log.debug("terminal listener failed: {}", e.toString());
             }
         }
     }
 
-    // --------------------------------------------------------------- cattura
+    // --------------------------------------------------------------- capture
 
     /**
-     * Esegue un comando nella sessione e ne restituisce il solo output, senza
-     * mostrarlo nel terminale. Se una cattura e' gia' in corso rifiuta subito:
-     * meglio saltare un giro di polling che sovrapporre due comandi.
+     * Runs a command in the session and returns only its output, without
+     * showing it in the terminal. If a capture is already running it fails
+     * immediately: skipping one polling round beats overlapping two commands.
      */
     public CompletableFuture<String> runCaptured(String command) {
         if (!isAlive()) {
-            return CompletableFuture.failedFuture(new IllegalStateException("Terminale non attivo"));
+            return CompletableFuture.failedFuture(new IllegalStateException("Terminal is not running"));
         }
         synchronized (this) {
             if (capture != null) {
-                return CompletableFuture.failedFuture(new IllegalStateException("Comando gia' in corso"));
+                return CompletableFuture.failedFuture(new IllegalStateException("A command is already running"));
             }
             String id = UUID.randomUUID().toString().substring(0, 8);
             String startMarker = "__KB" + id + "S__";
             String endMarker = "__KB" + id + "E__";
             CompletableFuture<String> future = new CompletableFuture<>();
 
-            // Il PTY fa l'eco della riga che scriviamo. Se il comando contenesse
-            // i marcatori per esteso, li ritroveremmo nell'eco e chiuderemmo la
-            // cattura sul comando invece che sul suo output. Spezzandoli in due
-            // stringhe adiacenti, l'eco mostra `"__KBxxx""S__"` mentre echo
-            // stampa `__KBxxxS__`: solo l'output contiene il marcatore vero.
+            // A PTY echoes back the line we write. If the command contained the
+            // markers verbatim we would find them in that echo and close the
+            // capture on the command instead of its output. Split across two
+            // adjacent strings, the echo shows `"__KBxxx""S__"` while echo
+            // prints `__KBxxxS__`: only the output holds the real marker.
             String echoStart = "echo \"__KB" + id + "\"\"S__\"";
             String echoEnd = "echo \"__KB" + id + "\"\"E__\"";
 
@@ -236,7 +235,7 @@ public class TerminalService {
 
             capture = new Capture(id, startMarker, endMarker, new StringBuilder(), future, timeout);
 
-            // stderr confluisce in stdout: se kubectl fallisce vogliamo leggerne il motivo
+            // stderr is folded into stdout: when kubectl fails we want the reason
             write(echoStart + "; " + command + " 2>&1; " + echoEnd + "\n");
             return future;
         }
@@ -248,10 +247,10 @@ public class TerminalService {
             return;
         }
         finishCapture(current, () -> current.future().completeExceptionally(
-                new IllegalStateException("Nessuna risposta dal terminale entro il timeout")));
+                new IllegalStateException("No response from the terminal before the timeout")));
     }
 
-    /** Chiude la cattura e riapre il flusso verso il terminale, sempre. */
+    /** Ends the capture and always hands the stream back to the terminal. */
     private void finishCapture(Capture current, Runnable completion) {
         synchronized (this) {
             if (capture == current) {

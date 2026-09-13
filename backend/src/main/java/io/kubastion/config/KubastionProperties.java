@@ -5,11 +5,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.List;
 
 /**
- * Configurazione dell'applicazione.
+ * Application configuration.
  *
- * Nessun valore sensibile vive qui: kubastion non conosce chiavi, password o
- * host remoti. Apre una shell locale e sei tu, dentro il terminale, a fare il
- * login come lo faresti normalmente.
+ * Nothing sensitive lives here: kubastion knows no keys, passwords or remote
+ * hosts. It opens a local shell and you log in through it yourself, exactly as
+ * you would in any terminal.
  */
 @ConfigurationProperties(prefix = "kubastion")
 public record KubastionProperties(
@@ -18,27 +18,27 @@ public record KubastionProperties(
         Monitor monitor) {
 
     /**
-     * La shell locale aperta nel terminale del browser. Da li' lanci tu
-     * ssh-add, ssh, il menu del gateway e tutto il resto.
+     * The local shell shown in the browser terminal. From there you run
+     * ssh-add, ssh, the gateway menu and everything else.
      *
-     * @param command eseguibile della shell; vuoto = scelta automatica per OS
-     * @param args    argomenti della shell
+     * @param command shell executable; empty means "pick the OS default"
+     * @param args    shell arguments
      */
     public record Terminal(String command, List<String> args) {
     }
 
     /**
-     * @param binary    percorso di kubectl SULLA MACCHINA REMOTA
-     * @param namespace namespace osservato
-     * @param context   contesto kubectl opzionale
+     * @param binary    path to kubectl ON THE REMOTE MACHINE
+     * @param namespace namespace to watch
+     * @param context   optional kubectl context
      */
     public record Kubectl(String binary, String namespace, String context) {
     }
 
     /**
-     * @param intervalSeconds intervallo di polling di `kubectl get pods`
-     * @param timeoutSeconds  oltre questo tempo il comando e' considerato perso
-     *                        e il terminale torna visibile
+     * @param intervalSeconds delay between `kubectl get pods` runs
+     * @param timeoutSeconds  past this, the command is considered lost and the
+     *                        terminal is handed back to the user
      */
     public record Monitor(int intervalSeconds, int timeoutSeconds) {
     }

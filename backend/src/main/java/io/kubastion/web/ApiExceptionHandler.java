@@ -10,16 +10,16 @@ import java.io.IOException;
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
-    /** Nome di pod o configurazione non validi: e' colpa della richiesta. */
+    /** Invalid pod name or configuration: the request is at fault. */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<String> badRequest(IllegalArgumentException e) {
         return ResponseEntity.badRequest().body(e.getMessage());
     }
 
-    /** ssh non parte o il comando remoto fallisce: problema a monte, non nostro. */
+    /** ssh or the remote command failed: the problem is upstream, not here. */
     @ExceptionHandler(IOException.class)
     public ResponseEntity<String> upstream(IOException e) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body("Comando remoto non eseguibile: " + e.getMessage());
+                .body("Remote command could not be run: " + e.getMessage());
     }
 }

@@ -16,13 +16,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * Ponte fra xterm.js nel browser e la sessione PTY.
+ * Bridge between xterm.js in the browser and the PTY session.
  *
- * Dal client arrivano messaggi JSON (tasti premuti, ridimensionamenti); verso
- * il client va il testo grezzo del terminale, che xterm scrive cosi' com'e'.
+ * The client sends JSON messages (keystrokes, resizes); raw terminal text goes
+ * back the other way and xterm writes it as-is.
  *
- * Alla chiusura della pagina la sessione NON viene terminata: se ricarichi il
- * browser ritrovi il tuo login ancora aperto.
+ * Closing the page does NOT kill the session: reload the browser and your login
+ * is still there.
  */
 @Component
 public class TerminalWebSocketHandler extends TextWebSocketHandler {
@@ -59,10 +59,10 @@ public class TerminalWebSocketHandler extends TextWebSocketHandler {
                 case "input" -> terminal.write(payload.path("data").asText(""));
                 case "resize" -> terminal.resize(
                         payload.path("cols").asInt(0), payload.path("rows").asInt(0));
-                default -> log.debug("messaggio terminale ignorato: {}", payload.path("type").asText());
+                default -> log.debug("ignored terminal message: {}", payload.path("type").asText());
             }
         } catch (Exception e) {
-            log.debug("messaggio terminale non valido: {}", e.toString());
+            log.debug("invalid terminal message: {}", e.toString());
         }
     }
 
@@ -82,7 +82,7 @@ public class TerminalWebSocketHandler extends TextWebSocketHandler {
                 }
             }
         } catch (Exception e) {
-            log.debug("invio al terminale fallito: {}", e.toString());
+            log.debug("terminal send failed: {}", e.toString());
         }
     }
 }

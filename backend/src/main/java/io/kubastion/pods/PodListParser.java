@@ -9,26 +9,26 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Trasforma l'output grezzo catturato dal terminale in una lista di pod.
+ * Turns the raw text captured from the terminal into a list of pods.
  *
- * Sta fuori dal servizio perche' e' il punto piu' esposto del progetto: cio'
- * che arriva non e' un JSON pulito da una API, ma testo uscito da uno
- * pseudo-terminale, con sequenze ANSI, ritorni carrello e — quando qualcosa va
- * storto — messaggi d'errore di kubectl al posto dei dati.
+ * This lives outside the service because it is the most exposed part of the
+ * project: what arrives is not clean JSON from an API, but text that came out
+ * of a pseudo-terminal — ANSI sequences, carriage returns, and, when something
+ * goes wrong, a kubectl error message where the data should be.
  */
 public final class PodListParser {
 
     private PodListParser() {
     }
 
-    /** Esito del parsing: o i pod, o un motivo leggibile per cui non ci sono. */
+    /** Either the pods, or a readable reason why there are none. */
     public sealed interface Result {
 
-        /** Lista di pod, eventualmente vuota (namespace senza pod e' un successo). */
+        /** Pod list, possibly empty — an empty namespace is a success. */
         record Pods(List<PodView> pods) implements Result {
         }
 
-        /** Il comando non ha prodotto dati interpretabili. */
+        /** The command produced nothing we could interpret. */
         record Failure(String message) implements Result {
         }
     }
@@ -37,9 +37,9 @@ public final class PodListParser {
         String text = TerminalText.clean(rawPayload).trim();
 
         if (text.isEmpty()) {
-            return new Result.Failure("Nessun output da kubectl: sei collegato alla macchina giusta?");
+            return new Result.Failure("No output from kubectl. Are you connected to the right machine?");
         }
-        // kubectl non produce JSON quando il namespace e' vuoto
+        // kubectl prints no JSON at all when the namespace is empty
         if (text.contains("No resources found")) {
             return new Result.Pods(List.of());
         }
@@ -61,7 +61,7 @@ public final class PodListParser {
             pods.sort(Comparator.comparing(PodView::name));
             return new Result.Pods(List.copyOf(pods));
         } catch (Exception e) {
-            return new Result.Failure("Output di kubectl non interpretabile: " + firstLine(text));
+            return new Result.Failure("Could not interpret kubectl output: " + firstLine(text));
         }
     }
 

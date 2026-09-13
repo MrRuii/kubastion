@@ -10,8 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * La proiezione di un pod ha piu' rami di quanti sembrino: la fase da sola non
- * basta mai a dire se qualcosa e' rotto. Questi test fissano le precedenze.
+ * Projecting a pod has more branches than it looks: the phase alone never tells
+ * you whether something is broken. These tests pin down the precedence rules.
  */
 class PodViewTest {
 
@@ -22,7 +22,7 @@ class PodViewTest {
     }
 
     @Test
-    void podSanoEInSalute() throws Exception {
+    void healthyRunningPod() throws Exception {
         PodView view = PodView.from(pod("""
                 {
                   "metadata": {"name": "api-gateway-1"},
@@ -41,9 +41,9 @@ class PodViewTest {
     }
 
     @Test
-    void ilMotivoDelContainerBatteLaFase() throws Exception {
-        // La fase dice "Running", ma un container e' in CrashLoopBackOff:
-        // mostrare "Running" qui sarebbe il bug piu' dannoso di tutti.
+    void containerReasonBeatsPhase() throws Exception {
+        // The phase says "Running" while a container is in CrashLoopBackOff.
+        // Showing "Running" here would be the most damaging bug of all.
         PodView view = PodView.from(pod("""
                 {
                   "metadata": {"name": "billing"},
@@ -62,7 +62,7 @@ class PodViewTest {
     }
 
     @Test
-    void iRestartSiSommanoSuTuttiIContainer() throws Exception {
+    void restartsAreSummedAcrossContainers() throws Exception {
         PodView view = PodView.from(pod("""
                 {
                   "metadata": {"name": "multi"},
@@ -80,9 +80,9 @@ class PodViewTest {
     }
 
     @Test
-    void containerCreatingNonEUnProblema() throws Exception {
-        // Un pod che sta partendo non va segnalato come guasto: e' rumore che
-        // renderebbe la tabella inutile a ogni deploy.
+    void containerCreatingIsNotAProblem() throws Exception {
+        // A pod that is starting up must not be flagged as broken: that noise
+        // would make the table useless on every deployment.
         PodView view = PodView.from(pod("""
                 {
                   "metadata": {"name": "starting"},
@@ -97,7 +97,7 @@ class PodViewTest {
     }
 
     @Test
-    void terminatedCompletedNonEUnProblemaEIlJobEInSalute() throws Exception {
+    void completedJobIsHealthy() throws Exception {
         PodView view = PodView.from(pod("""
                 {
                   "metadata": {"name": "job-1"},
@@ -112,7 +112,7 @@ class PodViewTest {
     }
 
     @Test
-    void terminatedConErroreEUnProblema() throws Exception {
+    void terminationWithErrorIsAProblem() throws Exception {
         PodView view = PodView.from(pod("""
                 {
                   "metadata": {"name": "failed-1"},
@@ -127,7 +127,8 @@ class PodViewTest {
     }
 
     @Test
-    void laCancellazioneBatteQualunqueAltroStato() throws Exception {
+    void deletionBeatsEveryOtherState() throws Exception {
+        // Status and colour must agree: a pod on its way out is never green.
         PodView view = PodView.from(pod("""
                 {
                   "metadata": {"name": "dying", "deletionTimestamp": "2026-09-13T01:00:00Z"},
@@ -141,9 +142,9 @@ class PodViewTest {
     }
 
     @Test
-    void senzaContainerStatusesLaColonnaReadyNonMente() throws Exception {
-        // Un pod appena schedulato non ha ancora containerStatuses: "0/0"
-        // sembrerebbe un guasto, quindi si mostra "-".
+    void withoutContainerStatusesTheReadyColumnDoesNotLie() throws Exception {
+        // A freshly scheduled pod has no containerStatuses yet: "0/0" would
+        // look like a failure, so we show "-" instead.
         PodView view = PodView.from(pod("""
                 {"metadata": {"name": "fresh"}, "status": {"phase": "Pending"}}
                 """));
@@ -153,7 +154,7 @@ class PodViewTest {
     }
 
     @Test
-    void faseMancanteDiventaUnknown() throws Exception {
+    void missingPhaseBecomesUnknown() throws Exception {
         PodView view = PodView.from(pod("""
                 {"metadata": {"name": "mystery"}, "status": {}}
                 """));
@@ -163,7 +164,7 @@ class PodViewTest {
     }
 
     @Test
-    void senzaStartTimeSiUsaLaCreazione() throws Exception {
+    void fallsBackToCreationTimestamp() throws Exception {
         PodView view = PodView.from(pod("""
                 {
                   "metadata": {"name": "no-start", "creationTimestamp": "2026-09-12T10:00:00Z"},
@@ -175,7 +176,7 @@ class PodViewTest {
     }
 
     @Test
-    void jsonQuasiVuotoNonFaEsplodereNulla() throws Exception {
+    void almostEmptyJsonDoesNotBlowUp() throws Exception {
         PodView view = PodView.from(pod("{}"));
 
         assertEquals("", view.name());

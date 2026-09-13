@@ -1,4 +1,4 @@
-/** Rispecchia i record del backend: PodsSnapshot / PodView. */
+/** Mirrors the backend records: PodsSnapshot / PodView. */
 
 export type MonitorState = 'IDLE' | 'MONITORING' | 'ERROR';
 

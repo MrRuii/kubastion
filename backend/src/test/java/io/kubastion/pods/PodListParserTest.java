@@ -10,22 +10,23 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Il parser riceve testo uscito da uno pseudo-terminale, non una risposta HTTP
- * pulita: puo' avere rumore prima e dopo il JSON, sequenze ANSI, e ogni tanto
- * al posto dei dati c'e' un errore di kubectl. Sono questi i casi che contano.
+ * The parser receives text that came out of a pseudo-terminal, not a clean HTTP
+ * response: there can be noise before and after the JSON, ANSI sequences, and
+ * every so often a kubectl error where the data should be. Those are the cases
+ * that matter.
  */
 class PodListParserTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    private static final String LISTA_VALIDA = """
+    private static final String VALID_LIST = """
             {
               "apiVersion": "v1",
               "kind": "List",
               "items": [
                 {"metadata": {"name": "zeta"}, "status": {"phase": "Running",
                   "containerStatuses": [{"ready": true, "restartCount": 0, "state": {"running": {}}}]}},
-                {"metadata": {"name": "alfa"}, "status": {"phase": "Running",
+                {"metadata": {"name": "alpha"}, "status": {"phase": "Running",
                   "containerStatuses": [{"ready": true, "restartCount": 0, "state": {"running": {}}}]}}
               ]
             }
@@ -34,105 +35,105 @@ class PodListParserTest {
     private List<PodView> pods(String payload) {
         PodListParser.Result result = PodListParser.parse(payload, mapper);
         assertInstanceOf(PodListParser.Result.Pods.class, result,
-                () -> "atteso successo, ottenuto: " + result);
+                () -> "expected success, got: " + result);
         return ((PodListParser.Result.Pods) result).pods();
     }
 
     private String failure(String payload) {
         PodListParser.Result result = PodListParser.parse(payload, mapper);
         assertInstanceOf(PodListParser.Result.Failure.class, result,
-                () -> "atteso fallimento, ottenuto: " + result);
+                () -> "expected failure, got: " + result);
         return ((PodListParser.Result.Failure) result).message();
     }
 
     @Test
-    void listaValidaOrdinataPerNome() {
-        List<PodView> pods = pods(LISTA_VALIDA);
+    void validListIsSortedByName() {
+        List<PodView> pods = pods(VALID_LIST);
 
         assertEquals(2, pods.size());
-        assertEquals("alfa", pods.get(0).name());
+        assertEquals("alpha", pods.get(0).name());
         assertEquals("zeta", pods.get(1).name());
     }
 
     @Test
-    void rumorePrimaDelJsonVieneIgnorato() {
-        // L'eco del comando e il prompt precedono sempre l'output vero.
-        String payload = "$ kubectl get pods -o json\n" + LISTA_VALIDA;
+    void noiseBeforeTheJsonIsIgnored() {
+        // The command echo and the prompt always come before the real output.
+        String payload = "$ kubectl get pods -o json\n" + VALID_LIST;
 
         assertEquals(2, pods(payload).size());
     }
 
     @Test
-    void ilPromptDopoIlJsonNonRompeIlParsing() {
-        // Caso piu' insidioso: dopo il JSON il terminale ristampa il prompt.
-        String payload = LISTA_VALIDA + "\nmike@jump:~$ ";
+    void thePromptAfterTheJsonDoesNotBreakParsing() {
+        // The nastiest case: the terminal reprints the prompt right after.
+        String payload = VALID_LIST + "\nmike@jump:~$ ";
 
         assertEquals(2, pods(payload).size());
     }
 
     @Test
-    void sequenzeAnsiERitorniCarrelloVengonoRipuliti() {
-        String payload = "[0m[32m\r\n" + LISTA_VALIDA.replace("\n", "\r\n") + "[0m";
+    void ansiSequencesAndCarriageReturnsAreStripped() {
+        String payload = "[0m[32m\r\n" + VALID_LIST.replace("\n", "\r\n") + "[0m";
 
         assertEquals(2, pods(payload).size());
     }
 
     @Test
-    void namespaceVuotoEUnSuccessoNonUnErrore() {
-        // kubectl non produce JSON quando non c'e' nulla: e' comunque uno stato sano.
+    void emptyNamespaceIsSuccessNotFailure() {
+        // kubectl prints no JSON when there is nothing: still a healthy state.
         assertTrue(pods("No resources found in demo namespace.").isEmpty());
     }
 
     @Test
-    void listaConItemsVuotoEUnSuccesso() {
+    void listWithEmptyItemsIsSuccess() {
         assertTrue(pods("{\"apiVersion\":\"v1\",\"kind\":\"List\",\"items\":[]}").isEmpty());
     }
 
     @Test
-    void outputVuotoSpiegaCosaControllare() {
+    void emptyOutputSaysWhatToCheck() {
         String message = failure("   \n  ");
 
-        assertTrue(message.contains("collegato"), () -> "messaggio poco utile: " + message);
+        assertTrue(message.contains("connected"), () -> "unhelpful message: " + message);
     }
 
     @Test
-    void erroreDiKubectlVieneRiportatoTaleEQuale() {
+    void kubectlErrorIsReportedVerbatim() {
         String message = failure("error: You must be logged in to the server (Unauthorized)");
 
         assertEquals("error: You must be logged in to the server (Unauthorized)", message);
     }
 
     @Test
-    void comandoNonTrovatoVieneRiportato() {
+    void commandNotFoundIsReported() {
         String message = failure("bash: kubectl: command not found");
 
         assertEquals("bash: kubectl: command not found", message);
     }
 
     @Test
-    void soloLaPrimaRigaDellErroreFinisceInUi() {
+    void onlyTheFirstLineOfAnErrorReachesTheUi() {
         String message = failure("""
                 error: unable to connect
-                dettagli lunghissimi che non servono
-                altra riga
+                a very long detail nobody needs
+                another line
                 """);
 
         assertEquals("error: unable to connect", message);
     }
 
     @Test
-    void jsonMalformatoNonEsplodeMaSpiega() {
-        String message = failure("{ questo non e' json valido ");
+    void malformedJsonExplainsInsteadOfCrashing() {
+        String message = failure("{ this is not valid json ");
 
-        assertTrue(message.contains("non interpretabile"), () -> "messaggio: " + message);
+        assertTrue(message.contains("Could not interpret"), () -> "message: " + message);
     }
 
     @Test
-    void jsonValidoMaSenzaItemsEUnFallimento() {
-        // Per esempio un singolo Pod invece di una List: meglio dirlo che
-        // mostrare una tabella vuota facendo credere che non ci sia nulla.
-        String message = failure("{\"kind\":\"Pod\",\"metadata\":{\"name\":\"solo\"}}");
+    void validJsonWithoutItemsIsAFailure() {
+        // For instance a single Pod instead of a List: better to say so than to
+        // show an empty table implying there is nothing there.
+        String message = failure("{\"kind\":\"Pod\",\"metadata\":{\"name\":\"lonely\"}}");
 
-        assertTrue(message.startsWith("{"), () -> "messaggio: " + message);
+        assertTrue(message.startsWith("{"), () -> "message: " + message);
     }
 }

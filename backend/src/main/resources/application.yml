@@ -1,8 +1,8 @@
 spring:
   application:
     name: kubastion
-  # La configurazione reale sta in config.yml nella root del progetto ed e'
-  # git-ignorata: e' li' che finiscono namespace e contesto veri.
+  # Real configuration lives in config.yml at the project root and is
+  # git-ignored: that is where your namespace and context go.
   config:
     import:
       - optional:file:../config.yml
@@ -10,13 +10,13 @@ spring:
 
 server:
   port: 8080
-  # Nessun bind esterno: kubastion parla solo con la tua macchina.
+  # No external binding: kubastion only talks to your machine.
   address: 127.0.0.1
 
 kubastion:
   terminal:
-    # Shell locale aperta nel terminale del browser. Vuoto = automatica
-    # (powershell su Windows, $SHELL altrove). Da qui fai ssh-add, ssh, menu.
+    # Local shell opened in the browser terminal. Empty = OS default
+    # (PowerShell on Windows, $SHELL elsewhere). From here you run ssh.
     command: ""
     args: []
   kubectl:

@@ -4,39 +4,25 @@
 # example file — it is the one that gets committed.
 
 kubastion:
-  ssh:
-    # The SSH destination exactly as you would type it after `ssh`.
-    # Using an alias defined in your ~/.ssh/config is the cleanest option,
-    # because then kubastion inherits your jump-host and key configuration.
-    #   Host jump
-    #     HostName <bastion>
-    #     User <user>
-    #     ControlMaster auto          # Linux/macOS only: makes log fetches instant
-    #     ControlPath ~/.ssh/cm-%r@%h:%p
-    #     ControlPersist 2h
-    destination: jump
-
-    # Extra arguments passed to the ssh binary. Keep BatchMode so kubastion
-    # never blocks waiting for an interactive password prompt.
-    options:
-      - -o
-      - BatchMode=yes
-      - -o
-      - ServerAliveInterval=30
+  terminal:
+    # Local shell opened in the browser terminal. Leave EMPTY to get your OS
+    # default (PowerShell on Windows, $SHELL elsewhere) — that is almost always
+    # what you want, because you then run ssh from it yourself.
+    command: ""
+    args: []
 
   kubectl:
-    # Path to kubectl ON THE REMOTE HOST. Usually just "kubectl".
+    # Path to kubectl ON THE REMOTE MACHINE, the one you reach through the
+    # terminal. Usually just "kubectl".
     binary: kubectl
     # Namespace to watch.
     namespace: my-namespace
-    # Optional: context to pass with --context. Leave empty to use the default.
+    # Optional: passed as --context. Leave empty to use the remote default.
     context: ""
 
-  logs:
-    # Lines fetched when you click the log button.
-    tailLines: 300
-
-  watch:
-    # Seconds to wait before restarting the watch stream after it dies,
-    # e.g. when your short-lived credential expires.
-    retryDelaySeconds: 5
+  monitor:
+    # How often `kubectl get pods` runs once monitoring is on.
+    interval-seconds: 3
+    # Past this, the command is considered lost and the terminal is handed
+    # back to you rather than staying hidden.
+    timeout-seconds: 15

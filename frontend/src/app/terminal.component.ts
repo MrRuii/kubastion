@@ -6,20 +6,19 @@ import { Terminal } from '@xterm/xterm';
 import { wsScheme } from './kubastion.service';
 
 /**
- * Terminale vero nel browser, collegato a una shell locale tramite PTY.
+ * A real terminal in the browser, wired to a local shell through a PTY.
  *
- * Qui dentro fai il login come lo faresti sempre: carichi la chiave, lanci
- * ssh, attraversi il menu del gateway, scegli la destinazione. kubastion non
- * automatizza niente di tutto cio' — ed e' per questo che funziona con
- * qualunque gateway, per quanto strano sia.
+ * You log in here exactly as you always do: load the key, run ssh, walk the
+ * gateway menu, pick the destination. kubastion automates none of it — and that
+ * is precisely why it works with any gateway, however odd.
  */
 @Component({
   selector: 'kb-terminal',
   standalone: true,
   template: `<div #host class="term"></div>`,
   styles: [`
-    :host { display: block; height: 100%; min-height: 0; }
-    .term { height: 100%; padding: 6px 8px; }
+    :host { display: block; height: 100%; min-height: 0; background: var(--bg); }
+    .term { height: 100%; padding: 8px 10px; }
   `],
 })
 export class TerminalComponent implements AfterViewInit, OnDestroy {
@@ -34,19 +33,29 @@ export class TerminalComponent implements AfterViewInit, OnDestroy {
   private retryMs = 1000;
 
   ngAfterViewInit(): void {
-    // xterm emette moltissimi eventi: fuori dalla zone per non far girare a
-    // vuoto il change detection a ogni carattere.
+    // xterm fires a great many events: keep it outside the zone so change
+    // detection does not run on every single keystroke.
     this.zone.runOutsideAngular(() => {
       const terminal = new Terminal({
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
         fontSize: 13,
+        lineHeight: 1.25,
         cursorBlink: true,
         scrollback: 5000,
         theme: {
           background: '#0f1419',
           foreground: '#d5dde6',
           cursor: '#4c9aff',
+          cursorAccent: '#0f1419',
           selectionBackground: '#2a3f5f',
+          black: '#171d24',
+          red: '#e5534b',
+          green: '#3ec18c',
+          yellow: '#e8b04b',
+          blue: '#4c9aff',
+          magenta: '#b083f0',
+          cyan: '#4dc2c2',
+          white: '#d5dde6',
         },
       });
       const fit = new FitAddon();
@@ -87,18 +96,18 @@ export class TerminalComponent implements AfterViewInit, OnDestroy {
       if (this.closing) {
         return;
       }
-      this.terminal?.writeln('\r\n\x1b[33m[kubastion] backend non raggiungibile, riprovo…\x1b[0m');
+      this.terminal?.writeln('\r\n\x1b[33m[kubastion] backend unreachable, retrying…\x1b[0m');
       setTimeout(() => this.connect(), this.retryMs);
       this.retryMs = Math.min(this.retryMs * 2, 10_000);
     };
   }
 
-  /** Adatta il terminale allo spazio e informa il PTY della nuova dimensione. */
+  /** Fit the terminal to the space available and tell the PTY the new size. */
   private refit(): void {
     try {
       this.fit?.fit();
     } catch {
-      // il contenitore puo' essere temporaneamente a dimensione zero
+      // the container can briefly have zero size
     }
     const terminal = this.terminal;
     if (terminal) {

@@ -28,6 +28,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.angular/
 
+# Logs written by start.sh
+.logs/
+
 # OS / IDE
 .DS_Store
 Thumbs.db
@@ -35,5 +38,5 @@ Thumbs.db
 *.iml
 .vscode/
 
-# Tooling locale dell'editor/agente
+# Local editor / agent tooling
 .claude/

@@ -1,7 +1,13 @@
-# kubastion
+<p align="center">
+  <img src="frontend/src/assets/kubastion-mark.svg" alt="" width="104">
+</p>
 
-**A browser terminal that logs into your cluster the way you already do — then turns
-`kubectl get pods` into a live table.**
+<h1 align="center">kubastion</h1>
+
+<p align="center">
+  <b>A browser terminal that logs into your cluster the way you already do — then turns
+  <code>kubectl get pods</code> into a live table.</b>
+</p>
 
 If you can reach your cluster's API from your laptop, **stop reading and use
 [k9s](https://k9scli.io) or [Headlamp](https://headlamp.dev)** — they are excellent and
@@ -54,21 +60,44 @@ readable instead of being flooded with JSON every three seconds.
 
 ## Requirements
 
-- Java 21 and Node 20+ to build
+- **Java 21+** and **Node 20+** on your machine (Maven comes with the repo, via the wrapper)
 - A machine you reach through a terminal, with `kubectl` already configured on it
 
 Nothing needs to be installed on the remote side.
 
 ## Quick start
 
+Clone it and run one file. It checks the prerequisites, creates `config.yml` from the
+example, installs the frontend dependencies the first time, starts both processes, waits
+until they actually answer, and opens the browser. `Ctrl+C` stops both.
+
+**Windows** — double-click `start.bat`, or:
+
+```powershell
+.\start.ps1
+```
+
+**macOS / Linux**
+
+```bash
+./start.sh
+```
+
+Then edit `config.yml` to set your namespace (it is git-ignored) and restart.
+
+<details>
+<summary>Starting the two processes by hand</summary>
+
 ```bash
 cp config.example.yml config.yml     # then edit it — config.yml is git-ignored
-cd backend  && mvn spring-boot:run
+cd backend  && ./mvnw spring-boot:run
 cd frontend && npm install && npm start
 ```
 
+</details>
+
 Open <http://localhost:4200>, log in through the terminal as usual, then press
-*start monitoring*.
+*Start monitoring*.
 
 ## How it works
 
