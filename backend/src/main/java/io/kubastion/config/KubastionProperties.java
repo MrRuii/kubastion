@@ -39,7 +39,11 @@ public record KubastionProperties(
      * @param intervalSeconds delay between `kubectl get pods` runs
      * @param timeoutSeconds  past this, the command is considered lost and the
      *                        terminal is handed back to the user
+     * @param quietSeconds    how long the terminal must be quiet before a
+     *                        command may be injected. The session is yours: a
+     *                        half-typed line always pauses polling, whatever
+     *                        this is set to. 0 disables the timer only.
      */
-    public record Monitor(int intervalSeconds, int timeoutSeconds) {
+    public record Monitor(int intervalSeconds, int timeoutSeconds, int quietSeconds) {
     }
 }

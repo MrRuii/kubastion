@@ -26,3 +26,7 @@ kubastion:
     # Past this, the command is considered lost and the terminal is handed
     # back to you rather than staying hidden.
     timeout-seconds: 15
+    # How long the terminal must be quiet before a command may be injected.
+    # The session is yours first: a half-typed line pauses polling no matter
+    # what this says, and 0 only turns off the timer, never that rule.
+    quiet-seconds: 2

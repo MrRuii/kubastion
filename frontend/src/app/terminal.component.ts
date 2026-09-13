@@ -17,7 +17,10 @@ import { wsScheme } from './kubastion.service';
   standalone: true,
   template: `<div #host class="term"></div>`,
   styles: [`
-    :host { display: block; height: 100%; min-height: 0; background: var(--bg); }
+    /* The terminal keeps its own dark surface whatever the console theme is:
+       a terminal is dark in every other tool you use, and the escape codes
+       coming out of your shell assume exactly that. */
+    :host { display: block; height: 100%; min-height: 0; background: var(--term-bg); }
     .term { height: 100%; padding: 8px 10px; }
   `],
 })
@@ -31,6 +34,7 @@ export class TerminalComponent implements AfterViewInit, OnDestroy {
   private observer?: ResizeObserver;
   private closing = false;
   private retryMs = 1000;
+  private refitTimer?: ReturnType<typeof setTimeout>;
 
   ngAfterViewInit(): void {
     // xterm fires a great many events: keep it outside the zone so change
@@ -68,7 +72,7 @@ export class TerminalComponent implements AfterViewInit, OnDestroy {
 
       terminal.onData((data) => this.send({ type: 'input', data }));
 
-      this.observer = new ResizeObserver(() => this.refit());
+      this.observer = new ResizeObserver(() => this.scheduleRefit());
       this.observer.observe(this.host.nativeElement);
 
       this.connect();
@@ -77,6 +81,7 @@ export class TerminalComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.closing = true;
+    clearTimeout(this.refitTimer);
     this.observer?.disconnect();
     this.socket?.close();
     this.terminal?.dispose();
@@ -100,6 +105,15 @@ export class TerminalComponent implements AfterViewInit, OnDestroy {
       setTimeout(() => this.connect(), this.retryMs);
       this.retryMs = Math.min(this.retryMs * 2, 10_000);
     };
+  }
+
+  /**
+   * Dragging the splitter fires a resize per animation frame. Each one reflows
+   * the remote console, so they are collapsed into one at the end of the drag.
+   */
+  private scheduleRefit(): void {
+    clearTimeout(this.refitTimer);
+    this.refitTimer = setTimeout(() => this.refit(), 120);
   }
 
   /** Fit the terminal to the space available and tell the PTY the new size. */

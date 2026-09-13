@@ -26,6 +26,8 @@ kubastion:
   monitor:
     interval-seconds: 3
     timeout-seconds: 15
+    # The terminal must be quiet this long before a command is injected.
+    quiet-seconds: 2
 
 logging:
   level:

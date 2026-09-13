@@ -1,6 +1,6 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, NgZone, inject, signal } from '@angular/core';
-import { PodsSnapshot } from './models';
+import { CommandInfo, PodsSnapshot, RunRequest, RunResult } from './models';
 
 /**
  * The only point of contact with the local backend.
@@ -15,6 +15,7 @@ export class KubastionService {
 
   readonly snapshot = signal<PodsSnapshot | null>(null);
   readonly backendOnline = signal(false);
+  readonly commands = signal<CommandInfo[]>([]);
 
   private socket?: WebSocket;
   private retryMs = 1000;
@@ -59,6 +60,31 @@ export class KubastionService {
     this.http.post<PodsSnapshot>('/api/monitor/stop', {}).subscribe({
       next: (snap) => this.snapshot.set(snap),
       error: () => undefined,
+    });
+  }
+
+  /** The fixed list of commands the backend will run. Loaded once. */
+  loadCommands(): void {
+    if (this.commands().length > 0) {
+      return;
+    }
+    this.http.get<CommandInfo[]>('/api/commands').subscribe({
+      next: (list) => this.commands.set(list),
+      error: () => undefined,
+    });
+  }
+
+  runCommand(request: RunRequest): Promise<RunResult> {
+    return new Promise((resolve, reject) => {
+      this.http.post<RunResult>('/api/commands/run', request).subscribe({
+        next: resolve,
+        // The backend answers a refusal in plain words — "you have a command
+        // half-typed" — so show that rather than an HTTP status.
+        error: (error: HttpErrorResponse) => reject(new Error(
+          typeof error.error === 'string' && error.error
+            ? error.error
+            : 'The command could not be run.')),
+      });
     });
   }
 }

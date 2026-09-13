@@ -46,6 +46,7 @@ public class PodMonitorService {
     private volatile List<PodView> pods = List.of();
     private volatile PodsSnapshot.State state = PodsSnapshot.State.IDLE;
     private volatile String message = "";
+    private volatile long updatedAt;
 
     public PodMonitorService(TerminalService terminal, KubectlCommands kubectl,
                              KubastionProperties props, ObjectMapper mapper) {
@@ -76,6 +77,7 @@ public class PodMonitorService {
         state = PodsSnapshot.State.IDLE;
         message = "";
         pods = List.of();
+        updatedAt = 0;
         log.info("Pod monitoring stopped");
         publish();
     }
@@ -99,7 +101,7 @@ public class PodMonitorService {
     }
 
     public PodsSnapshot snapshot() {
-        return new PodsSnapshot(state, message, kubectl.namespace(), pods, System.currentTimeMillis());
+        return new PodsSnapshot(state, message, kubectl.namespace(), pods, updatedAt);
     }
 
     // ------------------------------------------------------------- one round
@@ -109,11 +111,19 @@ public class PodMonitorService {
             fail("Terminal is not running. Open the page and log in.");
             return;
         }
+        // The session is yours first. Injecting while you are mid-command would
+        // corrupt the line you are writing, so the table waits instead.
+        String busy = terminal.busyReason(props.monitor().quietSeconds());
+        if (busy != null) {
+            pause(busy);
+            return;
+        }
         try {
             // scheduleWithFixedDelay: the next round only starts once this one
             // is done, so two commands can never overlap in the session.
             String payload = terminal.runCaptured(kubectl.getPods())
                     .get(Math.max(2, props.monitor().timeoutSeconds()) + 2L, TimeUnit.SECONDS);
+            log.debug("captured {} chars: [{}]", payload.length(), excerpt(payload));
             parse(payload);
         } catch (Exception e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -127,6 +137,7 @@ public class PodMonitorService {
                 pods = found.pods();
                 state = PodsSnapshot.State.MONITORING;
                 message = "";
+                updatedAt = System.currentTimeMillis();
                 publish();
             }
             case PodListParser.Result.Failure failure -> fail(failure.message());
@@ -137,6 +148,23 @@ public class PodMonitorService {
         state = PodsSnapshot.State.ERROR;
         message = reason == null ? "Unknown error" : reason;
         publish();
+    }
+
+    /** Holds the last known pods on screen, and says why they are not moving. */
+    private void pause(String reason) {
+        boolean changed = state != PodsSnapshot.State.PAUSED || !reason.equals(message);
+        state = PodsSnapshot.State.PAUSED;
+        message = reason;
+        if (changed) {
+            publish();
+        }
+    }
+
+    /** Enough of the payload to tell truncation from corruption in a log line. */
+    private static String excerpt(String payload) {
+        String flat = payload.replace("\r", "\\r").replace("\n", "\\n");
+        return flat.length() <= 160 ? flat
+                : flat.substring(0, 80) + " … " + flat.substring(flat.length() - 80);
     }
 
     private void publish() {

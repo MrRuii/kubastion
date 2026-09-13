@@ -43,16 +43,51 @@ public class KubectlCommands {
         return base() + " get pods -o json";
     }
 
+    /**
+     * Builds one of the catalogue commands.
+     *
+     * The pod name comes from the browser, so it is validated here rather than
+     * trusted: the UI only ever sends back a name it was given, but the shell
+     * on the other end does not know that.
+     */
+    public String build(ClusterCommand command, String pod, Integer tailLines) {
+        String target = "";
+        if (command.needsPod()) {
+            target = requireName(pod, "pod");
+        }
+        int tail = command.tailable() ? clampTail(tailLines) : 0;
+        String arguments = command.arguments(target, tail);
+
+        return command.scope() == ClusterCommand.Scope.CLUSTER
+                ? clusterBase() + " " + arguments
+                : base() + " " + arguments;
+    }
+
     public String namespace() {
         return namespace;
     }
 
     private String base() {
+        return clusterBase() + " -n " + namespace;
+    }
+
+    private String clusterBase() {
         StringBuilder sb = new StringBuilder(binary);
         if (!context.isEmpty()) {
             sb.append(" --context=").append(context);
         }
-        return sb.append(" -n ").append(namespace).toString();
+        return sb.toString();
+    }
+
+    /**
+     * A log tail has to be bounded. Unbounded output would have to travel
+     * through the terminal a line at a time and would take longer than anyone
+     * is willing to wait, so the UI picks from a range and anything else is
+     * pulled back into it.
+     */
+    private static int clampTail(Integer requested) {
+        int value = requested == null ? 200 : requested;
+        return Math.min(5000, Math.max(10, value));
     }
 
     /** Validates a resource, namespace or context name. */

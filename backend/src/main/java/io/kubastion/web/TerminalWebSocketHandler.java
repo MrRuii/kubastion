@@ -56,7 +56,7 @@ public class TerminalWebSocketHandler extends TextWebSocketHandler {
         try {
             JsonNode payload = mapper.readTree(message.getPayload());
             switch (payload.path("type").asText()) {
-                case "input" -> terminal.write(payload.path("data").asText(""));
+                case "input" -> terminal.type(payload.path("data").asText(""));
                 case "resize" -> terminal.resize(
                         payload.path("cols").asInt(0), payload.path("rows").asInt(0));
                 default -> log.debug("ignored terminal message: {}", payload.path("type").asText());

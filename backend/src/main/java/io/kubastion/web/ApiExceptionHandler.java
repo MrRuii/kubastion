@@ -16,6 +16,15 @@ public class ApiExceptionHandler {
         return ResponseEntity.badRequest().body(e.getMessage());
     }
 
+    /**
+     * The terminal is busy or not there yet. Not an error in the request and
+     * not a server fault — a state the UI shows and you resolve in one gesture.
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<String> conflict(IllegalStateException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+    }
+
     /** ssh or the remote command failed: the problem is upstream, not here. */
     @ExceptionHandler(IOException.class)
     public ResponseEntity<String> upstream(IOException e) {

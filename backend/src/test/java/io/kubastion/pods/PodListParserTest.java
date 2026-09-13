@@ -79,6 +79,25 @@ class PodListParserTest {
     }
 
     @Test
+    void aTokenSplitByTheTerminalWrapIsPutBackTogether() {
+        // The window was narrower than the line, so the terminal wrapped it in
+        // the middle of a word. This broke every poll on a small screen.
+        String wrapped = """
+                {"items": [
+                  {"metadata": {"name": "billing"}, "status": {"phase": "Running",
+                    "containerStatuses": [{"ready": false, "restartCount": 1,
+                      "state": {"waiting": {"reason": "CrashLoopBack
+                Off"}}}]}}
+                ]}
+                """;
+
+        List<PodView> pods = pods(wrapped);
+
+        assertEquals(1, pods.size());
+        assertEquals("CrashLoopBackOff", pods.get(0).status());
+    }
+
+    @Test
     void emptyNamespaceIsSuccessNotFailure() {
         // kubectl prints no JSON when there is nothing: still a healthy state.
         assertTrue(pods("No resources found in demo namespace.").isEmpty());

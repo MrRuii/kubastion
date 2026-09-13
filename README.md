@@ -13,13 +13,13 @@
   <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-3ec18c?style=flat-square">
   <img alt="Java 21" src="https://img.shields.io/badge/Java-21-4c9aff?style=flat-square">
   <img alt="Angular 18" src="https://img.shields.io/badge/Angular-18-4c9aff?style=flat-square">
-  <img alt="tests 48" src="https://img.shields.io/badge/tests-48-3ec18c?style=flat-square">
+  <img alt="tests 77" src="https://img.shields.io/badge/tests-77-3ec18c?style=flat-square">
   <img alt="status early" src="https://img.shields.io/badge/status-early-e8b04b?style=flat-square">
 </p>
 
 <p align="center">
-  <img src="docs/ui.svg" width="760"
-       alt="The kubastion window: a terminal on top where you log in yourself, a live pod table underneath.">
+  <img src="docs/ui.svg" width="780"
+       alt="The kubastion console: a terminal on top where you log in yourself, a live pod grid underneath.">
 </p>
 
 ---
@@ -50,7 +50,7 @@ If every line is true, the rest of this README is about your Tuesday.
 
 ## How it works
 
-Three things happen, in this order — and **only the third one is automated**.
+Four things happen, in this order — and **only the last two are automated**.
 
 ### 1. A real terminal, in the browser
 
@@ -108,6 +108,44 @@ carries the real marker.
 > is the point: by the time you press *Start monitoring* you are on the remote Linux
 > machine. Keep `terminal.command` empty so the local shell stays your OS default.
 
+### 4. Click a pod, get the command you were going to type anyway
+
+Clicking a row opens a window with **Logs**, **Logs (previous)**, **Describe**, **Events**
+and **YAML** for that pod. The toolbar picker runs the namespace-wide ones: events,
+deployments, services, ingresses, configmaps, secrets, nodes, top pods.
+
+The window always prints **the exact kubectl line that ran**, above its output. You should
+never have to guess what kubastion typed into your session on your behalf.
+
+Two rules hold for every one of them:
+
+- **Read-only.** No apply, no delete, no scale, no edit, no exec. A test walks the whole
+  catalogue and fails the build if a writing verb ever appears in it. You have a terminal
+  right there and your own credentials; kubastion should not be the thing that made a
+  mistake easy.
+- **Never a secret's value.** `Secrets` lists names, types and key counts. Reading one
+  would print a live credential into a browser tab, so the catalogue simply contains no
+  command that can.
+
+The browser never sends a command line — only an id from a fixed list and, at most, a pod
+name, which is validated against injection before it goes anywhere near the shell.
+
+### The session is yours, not the poller's
+
+This is the part that makes it usable rather than infuriating. While **you** are using the
+terminal, nothing is injected into it:
+
+- a **half-typed line** pauses polling entirely — type `kubectl get pods -n `, go make
+  coffee, come back, and your line is exactly where you left it
+- so does **recent typing**, and **output still arriving** from a command of yours (so
+  `tail -f` does not get interrupted by a poll)
+- the status bar says which of those it is, and polling resumes on its own the moment the
+  session goes quiet
+
+And the polled command's own output is hidden, *including the prompt the shell reprints
+afterwards* — otherwise a two-line prompt would fill your scrollback at twenty lines a
+minute.
+
 ### What the table actually tells you
 
 `phase` alone lies. A pod whose phase is `Running` can have a container in
@@ -153,9 +191,12 @@ This is the first thing your security team will ask, so it is the first thing do
 - It binds `127.0.0.1` only and talks to nothing else. **No telemetry, no network calls,
   no accounts.**
 - Everything that reaches the remote shell is validated against injection first: a
-  namespace of `demo; rm -rf /` is rejected at startup, not passed along.
-- The only thing it ever injects is a read-only `kubectl get pods`, on a timer, and only
-  after you press a button.
+  namespace of `demo; rm -rf /` is rejected at startup, and a pod name of
+  ``api`id` `` is rejected on the way in.
+- **The browser cannot compose a command.** It sends an id from a fixed catalogue and at
+  most a pod name; the command line is built on the backend and printed back to you.
+- **Everything it can run is read-only, and none of it can read a secret's value.** Both
+  are enforced by tests over the whole catalogue, not by convention.
 
 ---
 
@@ -219,6 +260,7 @@ Only `config.example.yml`, with placeholders, is versioned.
 | `kubectl.context` | optional `--context`; empty uses the remote default | `""` |
 | `monitor.interval-seconds` | how often the command runs | `3` |
 | `monitor.timeout-seconds` | past this a command is considered lost and the terminal is handed back to you | `15` |
+| `monitor.quiet-seconds` | how long the terminal must be quiet before anything is injected. A half-typed line pauses polling whatever this says; `0` only turns off the timer | `2` |
 
 <sub>All keys are under `kubastion:`.</sub>
 
@@ -228,12 +270,12 @@ Only `config.example.yml`, with placeholders, is versioned.
 
 ```
 backend/    Spring Boot 3.3 · Java 21 · no Lombok (records instead)
-  terminal/   PTY session, marker injection, output suppression
+  terminal/   PTY session, marker injection, output suppression, "are you typing?"
   pods/       PodListParser (pure, tested), PodView projection, 3s poller
-  kubectl/    command building + injection-proof validation
+  kubectl/    the command catalogue + injection-proof validation
   ssh/        turning raw ssh/kubectl errors into sentences worth reading
   web/        two WebSockets (terminal bytes, pod JSON) + a small REST API
-frontend/   Angular 18 standalone · signals · xterm.js
+frontend/   Angular 18 standalone · signals · xterm.js · light and dark
 start.bat · start.ps1 · start.sh
 ```
 
@@ -246,13 +288,14 @@ and it is *yours*. A blocking `--watch` would hold the terminal hostage until yo
 it. A short command that starts and finishes leaves the session yours between polls.
 
 ```bash
-cd backend && ./mvnw test     # 48 tests, no cluster required
+cd backend && ./mvnw test     # 77 tests, no cluster required
 ```
 
 The tests cover the parts that fail quietly: terminal noise and ANSI stripping, kubectl
-errors arriving where JSON was expected, shell-injection attempts in configuration, and
-every status precedence rule above. One of them found a real bug — a `Terminating` pod was
-being rendered green.
+errors arriving where JSON was expected, shell-injection attempts in both configuration
+and pod names, whether a keystroke counts as "you are mid-command", and every status
+precedence rule above. Two of them started as real bugs — a `Terminating` pod rendered
+green, and a JSON token split in half by a terminal that wrapped the line.
 
 ---
 
@@ -263,20 +306,26 @@ person.
 
 - Not a k9s or Headlamp replacement — if you can reach the API, use those.
 - No credential handling, storage, or automation of any kind.
-- No cluster mutation: no `apply`, no `delete`, no `scale`.
-- No multi-cluster, no plugins, no themes, no accounts, no telemetry.
+- No cluster mutation: no `apply`, no `delete`, no `scale`, no `exec`.
+- No free-text command box. The catalogue is the feature.
+- No multi-cluster, no plugins, no accounts, no telemetry.
 
 ## Roadmap
 
-Next, in order: **logs on demand per pod**, pause monitoring while you type, other resource
-types. Deliberately not started until the above has been used in anger.
+Next, in order: **follow logs live** rather than a fixed tail, a namespace picker, and
+saving a filter you keep retyping. Deliberately not started until the above has been used
+in anger.
 
 ## Status
 
 Early, but verified end to end: PTY, interactive shell, command injection, output capture,
-JSON parsing and the live table all work, with tests around the parts that break silently.
+JSON parsing, the live grid and the command window all work, with tests around the parts
+that break silently.
+
 What has *not* been exercised yet is a real corporate gateway — that is the next thing to
-find out, and the most useful thing you could report.
+find out, and the most useful thing you could report. One known rough edge: on Windows the
+local shell runs behind ConPTY, which re-renders its screen buffer, so resizing the window
+during a poll can briefly echo output that was meant to stay hidden.
 
 ## License
 

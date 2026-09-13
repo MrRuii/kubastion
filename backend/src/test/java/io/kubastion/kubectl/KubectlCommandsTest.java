@@ -21,7 +21,7 @@ class KubectlCommandsTest {
         return new KubectlCommands(new KubastionProperties(
                 new KubastionProperties.Terminal("", List.of()),
                 new KubastionProperties.Kubectl(binary, namespace, context),
-                new KubastionProperties.Monitor(3, 15)));
+                new KubastionProperties.Monitor(3, 15, 2)));
     }
 
     @Test

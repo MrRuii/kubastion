@@ -49,7 +49,7 @@ public final class PodListParser {
             return new Result.Failure(firstLine(text));
         }
         try {
-            JsonNode root = mapper.readTree(text.substring(brace));
+            JsonNode root = mapper.readTree(unwrap(text.substring(brace)));
             JsonNode items = root.path("items");
             if (!items.isArray()) {
                 return new Result.Failure(firstLine(text));
@@ -63,6 +63,23 @@ public final class PodListParser {
         } catch (Exception e) {
             return new Result.Failure("Could not interpret kubectl output: " + firstLine(text));
         }
+    }
+
+    /**
+     * Drops every line break before the JSON is parsed.
+     *
+     * A terminal wraps any line longer than the window, and the wrap lands
+     * wherever the character count says — including in the middle of a token,
+     * turning {@code "CrashLoopBackOff"} into {@code "CrashLoopBack} + newline +
+     * {@code Off"}. That is invalid JSON, so a narrow window used to break
+     * every single poll while a wide one worked perfectly.
+     *
+     * Removing the breaks repairs exactly that, and costs nothing: JSON does
+     * not need whitespace between tokens, and a real newline inside a string
+     * value arrives escaped as {@code \\n}, not as an actual line break.
+     */
+    private static String unwrap(String json) {
+        return json.replace("\n", "");
     }
 
     static String firstLine(String text) {

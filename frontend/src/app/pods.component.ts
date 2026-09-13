@@ -1,8 +1,10 @@
-import { Component, OnDestroy, computed, input, signal } from '@angular/core';
-import { PodView } from './models';
+import { Component, OnDestroy, computed, input, model, output, signal } from '@angular/core';
+import { CommandInfo, PodView } from './models';
+
+type SortKey = 'name' | 'status' | 'ready' | 'restarts' | 'age';
 
 /**
- * The pod table. No networking in here: it receives the list and draws it.
+ * The pod grid. No networking in here: it receives the list and draws it.
  * The data comes from the polling loop running in the backend.
  */
 @Component({
@@ -12,75 +14,99 @@ import { PodView } from './models';
     <div class="toolbar">
       <div class="search">
         <svg viewBox="0 0 16 16" aria-hidden="true">
-          <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" />
-          <path d="M10.5 10.5 L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M10.5 10.5 L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <input type="search" placeholder="Filter pods…" spellcheck="false"
-               [value]="filter()" (input)="onFilter($event)" />
+        <input type="search" placeholder="Filter by name or status" spellcheck="false"
+               aria-label="Filter pods" [value]="filter()" (input)="onFilter($event)"/>
         @if (filter()) {
-          <button type="button" class="icon" title="Clear filter" (click)="filter.set('')">×</button>
+          <button type="button" class="clear" title="Clear filter" (click)="filter.set('')">×</button>
         }
       </div>
 
-      <button type="button" class="chip" [class.active]="!onlyIssues()"
-              (click)="onlyIssues.set(false)">
-        {{ pods().length }} {{ pods().length === 1 ? 'pod' : 'pods' }}
-      </button>
+      <label class="toggle" [class.on]="issuesOnly()">
+        <input type="checkbox" [checked]="issuesOnly()" (change)="issuesOnly.set(!issuesOnly())"/>
+        Only issues
+      </label>
 
-      @if (issues() > 0) {
-        <button type="button" class="chip issues" [class.active]="onlyIssues()"
-                (click)="onlyIssues.set(!onlyIssues())"
-                title="Show only pods that need attention">
-          {{ issues() }} needing attention
-        </button>
-      } @else {
-        <span class="chip ok-chip">all healthy</span>
+      @if (clusterCommands().length > 0) {
+        <select class="picker" aria-label="Run a command"
+                [value]="''" (change)="onPick($event)">
+          <option value="">Run a command…</option>
+          @for (command of clusterCommands(); track command.id) {
+            <option [value]="command.id" [title]="command.description">{{ command.label }}</option>
+          }
+        </select>
       }
 
       <span class="spacer"></span>
-      <span class="updated" [class.stale]="stale()" title="Time since the last successful poll">
-        updated {{ updatedAgo() }}
+
+      <span class="result">
+        {{ visible().length }} of {{ pods().length }}
+        @if (sortKey() !== 'name' || sortDir() !== 1) {
+          <button type="button" class="link" (click)="resetSort()">reset sort</button>
+        }
       </span>
     </div>
 
     @if (visible().length === 0) {
-      <p class="empty">
+      <div class="empty">
         @if (pods().length === 0) {
-          No pods in this namespace.
+          <p>No pods in this namespace.</p>
         } @else {
-          No pod matches the current filter.
-          <button type="button" class="link" (click)="resetFilters()">Show all</button>
+          <p>No pod matches the current filter.</p>
+          <button type="button" (click)="resetFilters()">Clear filters</button>
         }
-      </p>
+      </div>
     } @else {
-      <div class="scroll">
+      <div class="grid">
         <table>
           <thead>
             <tr>
-              <th>Pod</th>
-              <th>Status</th>
-              <th>Ready</th>
-              <th class="num">Restarts</th>
-              <th class="num">Age</th>
-              <th>Node</th>
+              <th class="c-name" [class.sorted]="sortKey() === 'name'">
+                <button type="button" (click)="sortBy('name')">Pod{{ arrow('name') }}</button>
+              </th>
+              <th class="c-status" [class.sorted]="sortKey() === 'status'">
+                <button type="button" (click)="sortBy('status')">Status{{ arrow('status') }}</button>
+              </th>
+              <th class="c-ready num" [class.sorted]="sortKey() === 'ready'">
+                <button type="button" (click)="sortBy('ready')">Ready{{ arrow('ready') }}</button>
+              </th>
+              <th class="c-restarts num" [class.sorted]="sortKey() === 'restarts'">
+                <button type="button" (click)="sortBy('restarts')">Restarts{{ arrow('restarts') }}</button>
+              </th>
+              <th class="c-age num" [class.sorted]="sortKey() === 'age'">
+                <button type="button" (click)="sortBy('age')">Age{{ arrow('age') }}</button>
+              </th>
+              <th class="c-node">Node</th>
             </tr>
           </thead>
           <tbody>
             @for (pod of visible(); track pod.name) {
-              <tr [class.unhealthy]="!pod.healthy">
-                <td class="name">
+              <tr [class.flagged]="!pod.healthy" [class.selected]="pod.name === selected()"
+                  (click)="inspect.emit(pod.name)"
+                  title="Logs, describe, events for this pod">
+                <td class="c-name">
                   <span class="rail" [class.bad]="!pod.healthy"></span>
-                  <span class="label" [title]="pod.name">{{ pod.name }}</span>
-                  <button type="button" class="copy" (click)="copy(pod.name)"
-                          [title]="'Copy ' + pod.name">
-                    {{ copied() === pod.name ? 'copied' : 'copy' }}
-                  </button>
+                  <span class="podname" [title]="pod.name">{{ pod.name }}</span>
+                  <span class="acts">
+                    <button type="button" class="act" [title]="'Logs for ' + pod.name"
+                            (click)="$event.stopPropagation(); inspect.emit(pod.name)">logs</button>
+                    <button type="button" class="copy" [title]="'Copy ' + pod.name"
+                            (click)="$event.stopPropagation(); copy(pod.name)">
+                      {{ copied() === pod.name ? 'copied' : 'copy' }}
+                    </button>
+                  </span>
                 </td>
-                <td><span class="badge" [class.bad]="!pod.healthy">{{ pod.status }}</span></td>
-                <td class="ready" [class.partial]="isPartial(pod)">{{ pod.ready }}</td>
-                <td class="num" [class.hot]="pod.restarts > 0">{{ pod.restarts }}</td>
-                <td class="num muted">{{ age(pod.startedAt) }}</td>
-                <td class="muted node">{{ pod.node || '—' }}</td>
+                <td class="c-status">
+                  <span class="status" [class.bad]="!pod.healthy">
+                    <i class="dot"></i>{{ pod.status }}
+                  </span>
+                </td>
+                <td class="c-ready num mono" [class.warn]="isPartial(pod)">{{ pod.ready }}</td>
+                <td class="c-restarts num mono" [class.warn]="pod.restarts > 0">{{ pod.restarts }}</td>
+                <td class="c-age num mono faint">{{ age(pod.startedAt) }}</td>
+                <td class="c-node faint">{{ pod.node || '—' }}</td>
               </tr>
             }
           </tbody>
@@ -91,96 +117,150 @@ import { PodView } from './models';
   styles: [`
     :host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 
+    /* ── toolbar ──────────────────────────────────────────────────────── */
     .toolbar {
-      display: flex; align-items: center; gap: 8px; flex: none;
-      padding: 8px 12px;
+      display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: wrap;
+      padding: 7px 10px;
       border-bottom: 1px solid var(--border);
-      background: var(--surface);
+      background: var(--panel-2);
     }
     .spacer { flex: 1; }
 
-    .search { position: relative; display: flex; align-items: center; }
+    .search { position: relative; display: flex; align-items: center; flex: 0 1 240px; }
     .search svg {
       position: absolute; left: 8px; width: 13px; height: 13px;
-      color: var(--muted); pointer-events: none;
+      color: var(--faint); pointer-events: none;
     }
     .search input {
-      font: inherit; font-size: 12.5px;
-      width: 210px; padding: 5px 26px 5px 26px;
-      color: var(--text); background: var(--bg);
-      border: 1px solid var(--border); border-radius: var(--radius);
-      outline: none;
+      width: 100%; font-size: 12px; padding: 5px 24px 5px 26px; outline: none;
     }
-    .search input::placeholder { color: var(--muted); }
+    .search input::placeholder { color: var(--faint); }
     .search input:focus { border-color: var(--accent); }
     .search input::-webkit-search-cancel-button { display: none; }
-    .icon {
-      position: absolute; right: 4px;
-      padding: 0 5px; line-height: 1; font-size: 15px;
-      background: none; border: none; color: var(--muted);
+    .clear {
+      position: absolute; right: 3px; padding: 0 5px; line-height: 1; font-size: 15px;
+      background: none; border: none; color: var(--faint);
     }
-    .icon:hover { color: var(--text); }
+    .clear:hover { color: var(--text); background: none; }
 
-    .chip {
-      font: inherit; font-size: 11.5px; white-space: nowrap;
-      padding: 4px 10px; border-radius: 100px;
-      border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
+    .toggle {
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+      font-size: 12px; color: var(--muted); cursor: pointer;
+      padding: 4px 10px 4px 8px; border-radius: var(--radius);
+      border: 1px solid var(--border-2); background: var(--panel);
     }
-    button.chip { cursor: pointer; }
-    button.chip:hover { color: var(--text); border-color: var(--muted); }
-    .chip.active { color: var(--text); border-color: var(--accent); }
-    .chip.issues { color: var(--bad); border-color: rgba(229, 83, 75, .35); }
-    .chip.issues.active { background: rgba(229, 83, 75, .14); border-color: var(--bad); }
-    .chip.ok-chip { color: var(--ok); border-color: rgba(62, 193, 140, .3); }
+    .toggle input { margin: 0; accent-color: var(--accent); }
+    .toggle.on { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); }
 
-    .updated { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
-    .updated.stale { color: var(--warn); }
+    .picker { font-size: 12px; padding: 4px 6px; max-width: 170px; }
+    .result { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+    .link {
+      font: inherit; font-size: 11.5px; background: none; border: none; padding: 0 0 0 6px;
+      color: var(--accent); text-decoration: underline; cursor: pointer;
+    }
+    .link:hover { background: none; }
 
-    .scroll { flex: 1; min-height: 0; overflow: auto; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 7px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    /* ── grid ─────────────────────────────────────────────────────────── */
+    .grid { flex: 1; min-height: 0; overflow: auto; }
+    /* Fixed layout so the columns do not jump around as pods come and go, and
+       so a 60-character pod name truncates instead of pushing Status off a
+       phone screen. The name column takes whatever is left. */
+    table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+
     th {
-      color: var(--muted); font-weight: 500; font-size: 11px;
-      text-transform: uppercase; letter-spacing: .6px;
       position: sticky; top: 0; z-index: 1;
-      background: var(--surface);
-      box-shadow: inset 0 -1px 0 var(--border);
-      border-bottom: none;
+      padding: 0; text-align: left;
+      background: var(--panel-3);
+      border-bottom: 1px solid var(--border-2);
+      box-shadow: inset -1px 0 0 var(--border);
     }
-    tbody tr:hover { background: var(--surface-2); }
-    tbody tr.unhealthy { background: rgba(229, 83, 75, .05); }
-    tbody tr.unhealthy:hover { background: rgba(229, 83, 75, .1); }
+    th button {
+      width: 100%; text-align: inherit;
+      font-size: 10.5px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+      color: var(--muted); background: none; border: none; border-radius: 0;
+      padding: 7px 10px; white-space: nowrap;
+    }
+    th.num button { text-align: right; }
+    th button:hover { background: var(--border); color: var(--text); }
+    th.sorted button { color: var(--accent); }
+    th:not(:has(button)) {
+      font-size: 10.5px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+      color: var(--muted); padding: 7px 10px;
+    }
+
+    td {
+      height: var(--row); padding: 0 10px;
+      border-bottom: 1px solid var(--border);
+      box-shadow: inset -1px 0 0 var(--border);
+      white-space: nowrap;
+    }
+    tbody tr { cursor: pointer; }
+    tbody tr:nth-child(even) td { background: var(--panel-2); }
+    tbody tr:hover td { background: var(--accent-bg); }
+    tbody tr.flagged td { background: var(--bad-bg); }
+    tbody tr.flagged:hover td { background: var(--bad-bg); filter: brightness(.97); }
+    tbody tr.selected td { box-shadow: inset 0 0 0 1px var(--accent); }
 
     .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .muted { color: var(--muted); }
-    .hot { color: var(--warn); }
-    .node { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mono { font-family: var(--mono); font-size: 12px; }
+    .faint { color: var(--faint); }
+    .warn { color: var(--warn); font-weight: 600; }
 
-    .name { display: flex; align-items: center; gap: 9px; }
+    /* ── cells ────────────────────────────────────────────────────────── */
+    .c-name { width: auto; }
+    td.c-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .rail { width: 3px; height: 15px; border-radius: 2px; background: var(--ok); flex: none; }
     .rail.bad { background: var(--bad); }
-    .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .copy {
-      margin-left: auto; flex: none;
-      font: inherit; font-size: 10.5px; letter-spacing: .4px;
-      padding: 2px 7px; border-radius: var(--radius);
-      border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
-      opacity: 0; transition: opacity .12s ease;
+    .podname {
+      font-family: var(--mono); font-size: 12px;
+      min-width: 0; overflow: hidden; text-overflow: ellipsis;
     }
+    .acts { margin-left: auto; flex: none; display: flex; gap: 4px; padding-left: 8px; }
+    .act, .copy {
+      font-size: 10px; letter-spacing: .3px; padding: 1px 7px;
+      color: var(--muted); background: var(--panel); border-color: var(--border-2);
+    }
+    .act:hover, .copy:hover { color: var(--accent); border-color: var(--accent); }
+    /* Logs is the button you reach for all day, so it is always there.
+       Copy is a convenience and only shows when the row is under the pointer. */
+    .act { color: var(--accent); border-color: var(--border-2); }
+    .copy { opacity: 0; transition: opacity .12s ease; }
     tr:hover .copy, .copy:focus-visible { opacity: 1; }
-    .copy:hover { color: var(--accent); border-color: var(--accent); }
 
-    .ready.partial { color: var(--warn); }
-    .badge {
-      display: inline-block; padding: 2px 9px; border-radius: 100px; font-size: 11.5px;
-      background: rgba(62, 193, 140, .12); color: var(--ok);
+    .status {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11.5px; font-weight: 500;
+      padding: 2px 9px 2px 7px; border-radius: 100px;
+      background: var(--ok-bg); color: var(--ok);
     }
-    .badge.bad { background: rgba(229, 83, 75, .12); color: var(--bad); }
+    .status .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .status.bad { background: var(--bad-bg); color: var(--bad); }
+    tr.flagged .status { background: var(--panel); }
 
-    .empty { padding: 24px 16px; color: var(--muted); }
-    .link {
-      font: inherit; background: none; border: none; padding: 0 0 0 4px;
-      color: var(--accent); text-decoration: underline; cursor: pointer;
+    .c-status { width: 150px; }
+    .c-ready, .c-restarts, .c-age { width: 84px; }
+    .c-node { width: 130px; font-size: 12px; }
+    th:last-child, td:last-child { box-shadow: none; }
+
+    .empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+      color: var(--muted); padding: 28px 16px;
+    }
+    .empty p { margin: 0; }
+
+    /* ── responsive: drop the columns you can live without ────────────── */
+    @media (max-width: 900px) {
+      .c-node { display: none; }
+    }
+    @media (max-width: 700px) {
+      .c-age { display: none; }
+      .c-status { width: 130px; }
+      .search { flex-basis: 100%; }
+    }
+    @media (max-width: 520px) {
+      .c-ready { display: none; }
+      td, th button { padding-left: 8px; padding-right: 8px; }
     }
   `],
 })
@@ -188,12 +268,24 @@ export class PodsComponent implements OnDestroy {
   readonly pods = input.required<PodView[]>();
   /** Epoch millis of the last successful poll, straight from the snapshot. */
   readonly updatedAt = input<number>(0);
+  /** Two-way: the header's issue counter flips this too. */
+  readonly issuesOnly = model(false);
+  /** The fixed catalogue; the namespace-wide entries fill the toolbar picker. */
+  readonly commands = input<CommandInfo[]>([]);
+  /** Pod whose output window is open, so the row it came from stays marked. */
+  readonly selected = input<string | null>(null);
+
+  /** A row was clicked: open the command window for that pod. */
+  readonly inspect = output<string>();
+  /** A namespace or cluster command was picked from the toolbar. */
+  readonly runCommand = output<string>();
 
   readonly filter = signal('');
-  readonly onlyIssues = signal(false);
   readonly copied = signal('');
+  readonly sortKey = signal<SortKey>('name');
+  readonly sortDir = signal<1 | -1>(1);
 
-  /** Ticks once a second so ages and "updated ago" stay honest between polls. */
+  /** Ticks once a second so ages stay honest between polls. */
   private readonly now = signal(Date.now());
   private readonly clock = setInterval(() => this.now.set(Date.now()), 1000);
   private copyTimer?: ReturnType<typeof setTimeout>;
@@ -203,41 +295,61 @@ export class PodsComponent implements OnDestroy {
     clearTimeout(this.copyTimer);
   }
 
-  readonly issues = computed(() => this.pods().filter((pod) => !pod.healthy).length);
-
   readonly visible = computed(() => {
     const query = this.filter().trim().toLowerCase();
-    return this.pods()
-      .filter((pod) => !this.onlyIssues() || !pod.healthy)
+    const rows = this.pods()
+      .filter((pod) => !this.issuesOnly() || !pod.healthy)
       .filter((pod) => !query
         || pod.name.toLowerCase().includes(query)
         || pod.status.toLowerCase().includes(query));
+
+    const key = this.sortKey();
+    const direction = this.sortDir();
+    return [...rows].sort((a, b) => direction * compare(a, b, key));
   });
 
-  readonly updatedAgo = computed(() => {
-    const at = this.updatedAt();
-    if (!at) {
-      return 'never';
-    }
-    const seconds = Math.max(0, Math.round((this.now() - at) / 1000));
-    if (seconds < 2) { return 'just now'; }
-    if (seconds < 60) { return `${seconds}s ago`; }
-    return `${Math.floor(seconds / 60)}m ago`;
-  });
-
-  /** Past a few polling cycles the table is no longer telling you the truth. */
-  readonly stale = computed(() => {
-    const at = this.updatedAt();
-    return at > 0 && this.now() - at > 15_000;
-  });
+  readonly clusterCommands = computed(() =>
+    this.commands().filter((command) => !command.needsPod));
 
   onFilter(event: Event): void {
     this.filter.set((event.target as HTMLInputElement).value);
   }
 
+  onPick(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    const id = select.value;
+    // Back to the placeholder, so picking the same command twice still runs it.
+    select.value = '';
+    if (id) {
+      this.runCommand.emit(id);
+    }
+  }
+
   resetFilters(): void {
     this.filter.set('');
-    this.onlyIssues.set(false);
+    this.issuesOnly.set(false);
+  }
+
+  resetSort(): void {
+    this.sortKey.set('name');
+    this.sortDir.set(1);
+  }
+
+  sortBy(key: SortKey): void {
+    if (this.sortKey() === key) {
+      this.sortDir.set(this.sortDir() === 1 ? -1 : 1);
+      return;
+    }
+    this.sortKey.set(key);
+    // Counts and ages are read "worst first"; names are read alphabetically.
+    this.sortDir.set(key === 'restarts' ? -1 : 1);
+  }
+
+  arrow(key: SortKey): string {
+    if (this.sortKey() !== key) {
+      return '';
+    }
+    return this.sortDir() === 1 ? ' ↑' : ' ↓';
   }
 
   isPartial(pod: PodView): boolean {
@@ -256,11 +368,8 @@ export class PodsComponent implements OnDestroy {
 
   /** Age in the compact form kubectl uses: 3d, 5h, 12m. */
   age(startedAt: string): string {
-    if (!startedAt) {
-      return '—';
-    }
     const started = Date.parse(startedAt);
-    if (Number.isNaN(started)) {
+    if (!startedAt || Number.isNaN(started)) {
       return '—';
     }
     const seconds = Math.max(0, Math.floor((this.now() - started) / 1000));
@@ -272,4 +381,33 @@ export class PodsComponent implements OnDestroy {
     if (minutes > 0) { return `${minutes}m`; }
     return `${seconds}s`;
   }
+}
+
+function compare(a: PodView, b: PodView, key: SortKey): number {
+  switch (key) {
+    case 'status':
+      // Broken pods first within a status sort: that is why you are sorting.
+      return (Number(a.healthy) - Number(b.healthy))
+        || a.status.localeCompare(b.status)
+        || a.name.localeCompare(b.name);
+    case 'ready':
+      return (ratio(a.ready) - ratio(b.ready)) || a.name.localeCompare(b.name);
+    case 'restarts':
+      return (a.restarts - b.restarts) || a.name.localeCompare(b.name);
+    case 'age':
+      // Ascending age means oldest first, so the timestamps sort ascending too.
+      return (Date.parse(a.startedAt) || 0) - (Date.parse(b.startedAt) || 0)
+        || a.name.localeCompare(b.name);
+    default:
+      return a.name.localeCompare(b.name);
+  }
+}
+
+/** "1/2" becomes 0.5 so a partly-ready pod sorts below a fully-ready one. */
+function ratio(ready: string): number {
+  const [done, total] = ready.split('/').map(Number);
+  if (!total || Number.isNaN(done) || Number.isNaN(total)) {
+    return -1;
+  }
+  return done / total;
 }

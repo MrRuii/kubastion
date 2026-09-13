@@ -1,17 +1,66 @@
+/*
+ * Console palette. Light by default because this is a tool you keep open next
+ * to a ticket system all day, not a toy; the terminal keeps its own dark
+ * surface regardless, because a terminal is dark everywhere else too.
+ */
 :root {
-  --bg: #0f1419;
-  --surface: #171d24;
-  --surface-2: #1e262f;
-  --border: #2a343f;
-  --text: #d5dde6;
-  --muted: #7c8b9c;
-  --accent: #4c9aff;
-  --ok: #3ec18c;
-  --warn: #e8b04b;
-  --bad: #e5534b;
+  color-scheme: light dark;
+
+  --bg: #eef1f5;
+  --panel: #ffffff;
+  --panel-2: #f5f7fa;
+  --panel-3: #eaeef3;
+  --border: #d6dde6;
+  --border-2: #bcc7d4;
+
+  --text: #16202b;
+  --muted: #5c6b80;
+  --faint: #8493a6;
+
+  --accent: #1f5fbd;
+  --accent-bg: #e7f0fd;
+  --ok: #11724a;
+  --ok-bg: #e0f3e9;
+  --warn: #8a5a06;
+  --warn-bg: #fbf0d8;
+  --bad: #ad2a22;
+  --bad-bg: #fcebe9;
+
+  --term-bg: #0f1419;
+  --term-fg: #d5dde6;
+
+  --radius: 6px;
+  --row: 30px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .07);
+
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  --radius: 5px;
-  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c1116;
+    --panel: #141b23;
+    --panel-2: #1a222c;
+    --panel-3: #212b36;
+    --border: #2a343f;
+    --border-2: #3a4756;
+
+    --text: #dbe3ec;
+    --muted: #93a2b5;
+    --faint: #6f7f93;
+
+    --accent: #62a4ff;
+    --accent-bg: rgba(98, 164, 255, .14);
+    --ok: #4bc68f;
+    --ok-bg: rgba(75, 198, 143, .14);
+    --warn: #e0aa4f;
+    --warn-bg: rgba(224, 170, 79, .14);
+    --bad: #f0675e;
+    --bad-bg: rgba(240, 103, 94, .14);
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -22,34 +71,53 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--mono);
-  font-size: 14px;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
 
 button {
-  font-family: inherit;
+  font: inherit;
   font-size: 12px;
   color: var(--text);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--panel);
+  border: 1px solid var(--border-2);
   border-radius: var(--radius);
-  padding: 5px 11px;
+  padding: 5px 12px;
   cursor: pointer;
-  transition: color .12s ease, border-color .12s ease, background .12s ease;
+  white-space: nowrap;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
 }
-button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-button:disabled { opacity: .4; cursor: not-allowed; }
+button:hover:not(:disabled) { background: var(--panel-2); border-color: var(--faint); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+
+input, select {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+}
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-::selection { background: rgba(76, 154, 255, .3); }
+::selection { background: var(--accent-bg); }
 
-::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar { width: 11px; height: 11px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border: 2px solid var(--bg);
+  background: var(--border-2);
+  border: 3px solid transparent;
+  background-clip: content-box;
   border-radius: 100px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-thumb:hover { background: var(--faint); background-clip: content-box; }
