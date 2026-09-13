@@ -72,35 +72,28 @@ export class TerminalComponent implements AfterViewInit, OnDestroy {
 
       terminal.onData((data) => this.send({ type: 'input', data }));
 
-      // Copy and paste the way every other terminal on the machine does it.
-      // Ctrl+C keeps meaning SIGINT when nothing is selected — interrupting a
-      // command is what that key is for — and only copies when you have made a
-      // selection, which is the one case where SIGINT is not what you wanted.
+      // Ctrl+C is the only key worth intercepting. With a selection it should
+      // copy; with none it must stay SIGINT, which is what the key is for.
+      //
+      // Ctrl+V is deliberately NOT handled: the browser already fires a paste
+      // event carrying the text, which xterm applies. Intercepting it to call
+      // navigator.clipboard.readText() actively breaks pasting, because reading
+      // the clipboard needs a permission that is denied here while the native
+      // paste event needs none. Same reason the context menu is left alone —
+      // its Paste entry is a working fallback.
       terminal.attachCustomKeyEventHandler((event) => {
         if (event.type !== 'keydown' || !(event.ctrlKey || event.metaKey) || event.altKey) {
           return true;
         }
-        const key = event.key.toLowerCase();
-        if (key === 'c' && terminal.hasSelection()) {
-          navigator.clipboard?.writeText(terminal.getSelection()).catch(() => undefined);
+        if (event.key.toLowerCase() === 'c' && terminal.hasSelection()) {
+          const selection = terminal.getSelection();
+          // Writing is allowed on a keypress; if it ever is not, swallowing the
+          // key still beats sending SIGINT to a command you meant to copy from.
+          navigator.clipboard?.writeText(selection).catch(() => undefined);
           terminal.clearSelection();
           return false;
         }
-        if (key === 'v') {
-          navigator.clipboard?.readText()
-            .then((text) => { if (text) { this.send({ type: 'input', data: text }); } })
-            .catch(() => undefined);
-          return false;
-        }
         return true;
-      });
-
-      // Middle-click and right-click paste, as on a Linux terminal.
-      this.host.nativeElement.addEventListener('contextmenu', (event) => {
-        event.preventDefault();
-        navigator.clipboard?.readText()
-          .then((text) => { if (text) { this.send({ type: 'input', data: text }); } })
-          .catch(() => undefined);
       });
 
       this.observer = new ResizeObserver(() => this.scheduleRefit());
