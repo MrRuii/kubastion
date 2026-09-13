@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img alt="license MIT" src="https://img.shields.io/badge/license-MIT-3ec18c?style=flat-square">
+  <img alt="license PolyForm Shield 1.0.0" src="https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-3ec18c?style=flat-square">
   <img alt="Java 21" src="https://img.shields.io/badge/Java-21-4c9aff?style=flat-square">
   <img alt="Angular 18" src="https://img.shields.io/badge/Angular-18-4c9aff?style=flat-square">
   <img alt="tests 77" src="https://img.shields.io/badge/tests-77-3ec18c?style=flat-square">
@@ -329,4 +329,14 @@ during a poll can briefly echo output that was meant to stay hidden.
 
 ## License
 
-[MIT](LICENSE).
+[PolyForm Shield 1.0.0](LICENSE). In plain words:
+
+- **Use it for anything, including at work.** That is the whole point — this was written
+  for people doing support work inside a company, and nothing here restricts that.
+- **Read it, fork it, change it, share your changes.** All allowed.
+- **What you may not do is compete with it**: sell it, or offer it as a product or service
+  that substitutes for it.
+
+This is *source-available*, not OSI open source: a licence that forbids competing use
+discriminates by field of endeavour, which the open source definition does not allow.
+Saying so plainly seems better than claiming a label that does not fit.

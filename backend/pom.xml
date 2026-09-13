@@ -17,6 +17,14 @@
     <name>kubastion-backend</name>
     <description>Drives kubectl on a jump host over SSH and streams pod state to the UI</description>
 
+    <licenses>
+        <license>
+            <name>PolyForm Shield License 1.0.0</name>
+            <url>https://polyformproject.org/licenses/shield/1.0.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
     <properties>
         <java.version>21</java.version>
     </properties>
